@@ -445,6 +445,8 @@ function BoardSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
   const desktopW = useEditor(s => (site ? pageOf(s).nodes[site.id]?.w : undefined)) ?? 1440;
   const cw = site?.contentWidth ?? null;
   const setCw = (v: number | null) => site && setShared([site.id], n => { n.contentWidth = v; }, 'contentWidth');
+  const align = site?.contentAlign ?? 'center';
+  const alignWord = align === 'left' ? 'links' : align === 'right' ? 'rechts' : 'mittig';
   return (
     <Section title="Board">
       <div className="row">
@@ -476,20 +478,30 @@ function BoardSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
       )}
       {site && (
         <>
-          <label className="check" title="In Browserfenstern, die breiter sind als hier eingestellt, bleibt der Inhalt mittig. Hintergründe und Flächen laufen trotzdem bis zum Fensterrand.">
+          <label className="check" title="In Browserfenstern, die breiter sind als hier eingestellt, bleibt der Inhalt so breit. Hintergründe und Flächen laufen trotzdem bis zum Fensterrand.">
             <input type="checkbox" checked={cw !== null} onChange={e => setCw(e.target.checked ? desktopW : null)} />
-            Inhalt in breiten Fenstern mittig halten
+            Inhaltsbreite in breiten Fenstern begrenzen
           </label>
           {cw !== null && (
-            <div className="row">
-              <span className="lbl">Höchstens</span>
-              <NumberField title="Größte Breite des Inhalts" suffix="px" min={320} max={4000} step={10} precision={0} value={cw} onChange={v => setCw(v)} />
-            </div>
+            <>
+              <div className="row">
+                <span className="lbl">Höchstens</span>
+                <NumberField title="Größte Breite des Inhalts" suffix="px" min={320} max={4000} step={10} precision={0} value={cw} onChange={v => setCw(v)} />
+              </div>
+              <div className="row">
+                <span className="lbl">Inhalt steht</span>
+                <Seg value={align} onChange={v => site && setShared([site.id], n => { n.contentAlign = v === 'center' ? undefined : v; }, 'contentAlign')} options={[
+                  { value: 'left', icon: <span>Links</span>, title: 'Inhalt am linken Fensterrand, rechts freie Fläche' },
+                  { value: 'center', icon: <span>Mitte</span>, title: 'Inhalt mittig, links und rechts gleich viel freie Fläche' },
+                  { value: 'right', icon: <span>Rechts</span>, title: 'Inhalt am rechten Fensterrand, links freie Fläche' },
+                ]} />
+              </div>
+            </>
           )}
           <p className="proto-hint">
             {cw === null
-              ? 'In Fenstern breiter als das Board bleiben frei platzierte Elemente an ihrer Stelle links, rechts entsteht freie Fläche.'
-              : `In breiteren Fenstern bleibt der Inhalt ${cw} px breit und mittig. Hintergründe laufen bis zum Rand. Sichtbar in der Vorschau unter „Fensterbreite“.`}
+              ? 'In Fenstern breiter als das Board bleiben frei platzierte Elemente an ihrer Stelle links, Elemente im Layout ziehen sich in die Breite.'
+              : `In breiteren Fenstern bleibt der Inhalt höchstens ${cw} px breit und steht ${alignWord}. Hintergründe laufen bis zum Rand. Zu sehen in der Vorschau, wenn das Fenster breiter ist (oder mit ⌘ − verkleinert).`}
           </p>
         </>
       )}

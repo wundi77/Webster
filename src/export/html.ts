@@ -195,18 +195,31 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     };
     walk(root, cw);
   }
-  const gutter = (w: number) => `max(0px, (100% - ${Math.max(0, w)}px) / 2)`;
+  // Anteil des freien Platzes, der links liegt: links 0, mittig ½, rechts 1
+  const share = root.contentAlign === 'left' ? 0 : root.contentAlign === 'right' ? 1 : 0.5;
+  /** Freier Platz neben dem Inhalt (links bzw. rechts), wenn der Behälter breiter ist als w */
+  const freeSide = (w: number, side: 'l' | 'r'): string | null => {
+    const f = side === 'l' ? share : 1 - share;
+    if (!f) return null;
+    const free = `max(0px, 100% - ${Math.max(0, w)}px)`;
+    return f === 1 ? free : `(${free} * ${f})`;
+  };
+  const plus = (base: string, extra: string | null) => (extra ? `calc(${base} + ${extra})` : base);
 
   const cssFor = (n: WNode, bp: Breakpoint, parent: WNode | undefined): Css => {
     const c = cssForBase(n, bp, parent);
     if (!cw) return c;
     const pAvail = parent ? bands.get(parent.id) : undefined;
-    // Frei platzierte Ebenen in einem Band rücken um den freien Rand nach rechts
-    if (pAvail !== undefined && c.position === 'absolute' && c.left !== undefined) c.left = `calc(${c.left} + ${gutter(pAvail)})`;
-    // Feste oder füllende Bereiche untereinander zwischen Bändern: mittig im Inhaltsbereich
+    // Frei platzierte Ebenen in einem Band rücken um den freien Rand
+    if (pAvail !== undefined && c.position === 'absolute' && c.left !== undefined) c.left = plus(c.left, freeSide(pAvail, 'l'));
+    // Feste oder füllende Bereiche untereinander zwischen Bändern: im Inhaltsbereich ausrichten
     if (parent && pAvail !== undefined && bandParents.has(parent.id) && !bands.has(n.id) && c.position !== 'absolute' && c.position !== 'fixed') {
       const PL = resolveNode(parent, bp).layout;
-      if (PL?.type === 'flex' && PL.direction === 'column') { const g = gutter(pAvail - padX(parent)); c['margin-left'] = g; c['margin-right'] = g; }
+      if (PL?.type === 'flex' && PL.direction === 'column') {
+        const w = pAvail - padX(parent);
+        c['margin-left'] = plus('0px', freeSide(w, 'l'));
+        c['margin-right'] = plus('0px', freeSide(w, 'r'));
+      }
     }
     // Band mit Layout (ohne weitere Bänder darin): Innenabstand links/rechts wächst mit dem Fenster
     const avail = bands.get(n.id);
@@ -214,8 +227,8 @@ export function renderPageParts(ctx: PageCtx): PageParts {
       const L = resolveNode(n, bp).layout;
       if (L) {
         const [, r, , l] = L.padding;
-        c['padding-left'] = `max(${l}px, calc((100% - ${Math.max(0, avail)}px) / 2 + ${l}px))`;
-        c['padding-right'] = `max(${r}px, calc((100% - ${Math.max(0, avail)}px) / 2 + ${r}px))`;
+        c['padding-left'] = plus(`${l}px`, freeSide(avail, 'l'));
+        c['padding-right'] = plus(`${r}px`, freeSide(avail, 'r'));
       }
     }
     return c;
