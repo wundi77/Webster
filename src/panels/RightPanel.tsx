@@ -439,6 +439,12 @@ function BoardSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
   const w = common(nodes, n => n.w), h = common(nodes, n => n.h);
   const match = BOARD_PRESETS.flatMap(g => g.items).find(([, pw, ph]) => pw === w && ph === h);
   const allRoot = nodes.every(n => n.parentId === null);
+  const page = useEditor(pageOf);
+  const compPage = useEditor(s => isComponentPage(s.doc, s.pageId));
+  const site = nodes.length === 1 && !compPage && isPageBoard(page, nodes[0].id) ? nodes[0] : null;
+  const desktopW = useEditor(s => (site ? pageOf(s).nodes[site.id]?.w : undefined)) ?? 1440;
+  const cw = site?.contentWidth ?? null;
+  const setCw = (v: number | null) => site && setShared([site.id], n => { n.contentWidth = v; }, 'contentWidth');
   return (
     <Section title="Board">
       <div className="row">
@@ -467,6 +473,25 @@ function BoardSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
             onChange={e => upd(n => { n.site = e.target.checked; }, 'site')} />
           Webseite – passt sich an Breakpoints an
         </label>
+      )}
+      {site && (
+        <>
+          <label className="check" title="In Browserfenstern, die breiter sind als hier eingestellt, bleibt der Inhalt mittig. Hintergründe und Flächen laufen trotzdem bis zum Fensterrand.">
+            <input type="checkbox" checked={cw !== null} onChange={e => setCw(e.target.checked ? desktopW : null)} />
+            Inhalt in breiten Fenstern mittig halten
+          </label>
+          {cw !== null && (
+            <div className="row">
+              <span className="lbl">Höchstens</span>
+              <NumberField title="Größte Breite des Inhalts" suffix="px" min={320} max={4000} step={10} precision={0} value={cw} onChange={v => setCw(v)} />
+            </div>
+          )}
+          <p className="proto-hint">
+            {cw === null
+              ? 'In Fenstern breiter als das Board bleiben frei platzierte Elemente an ihrer Stelle links, rechts entsteht freie Fläche.'
+              : `In breiteren Fenstern bleibt der Inhalt ${cw} px breit und mittig. Hintergründe laufen bis zum Rand. Sichtbar in der Vorschau unter „Fensterbreite“.`}
+          </p>
+        </>
       )}
     </Section>
   );

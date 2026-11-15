@@ -9,7 +9,7 @@ type SmallBp = Exclude<Breakpoint, 'desktop'>;
 /** Diese Eigenschaften gelten immer für alle Breakpoints */
 export const SHARED = new Set<string>([
   'id', 'type', 'name', 'parentId', 'children', 'text', 'src', 'imageRef', 'locked', 'overrides', 'site',
-  'isMain', 'componentId', 'mainId', 'touched', 'link', 'hover', 'hoverDuration', 'pin', 'scrolled', 'scrollAt', 'scrollDuration', 'reveal', 'nav', 'navLinks', 'form', 'formField', 'formLabel', 'formSubmit', 'embed', 'codeBlock', 'customCss', 'vector', 'guides', 'variantSet', 'variantName', 'vkey',
+  'isMain', 'componentId', 'mainId', 'touched', 'link', 'hover', 'hoverDuration', 'pin', 'scrolled', 'scrollAt', 'scrollDuration', 'contentWidth', 'reveal', 'nav', 'navLinks', 'form', 'formField', 'formLabel', 'formSubmit', 'embed', 'codeBlock', 'customCss', 'vector', 'guides', 'variantSet', 'variantName', 'vkey',
 ]);
 
 const nodeCache: Record<SmallBp, WeakMap<WNode, WNode>> = { tablet: new WeakMap(), mobile: new WeakMap() };

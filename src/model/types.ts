@@ -180,6 +180,8 @@ export interface WNode {
   scrollAt?: number;
   /** Dauer des Übergangs in ms */
   scrollDuration?: number;
+  /** Nur Webseiten-Board: Inhalt in breiten Fenstern höchstens so breit (px) und mittig; Flächen laufen weiter bis zum Rand */
+  contentWidth?: number | null;
   /** Diese Ebene ist eine Kopfleiste mit Menü */
   nav?: NavSettings | null;
   /** Dieses Board enthält die Menüpunkte (wird auf kleinen Bildschirmen zum ☰-Menü) */

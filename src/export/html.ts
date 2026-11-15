@@ -1,7 +1,7 @@
 // Erzeugt aus einer Seite echtes HTML + CSS – für die Live-Vorschau und den Export.
 import type { Breakpoint, Page, WDocument, WNode } from '../model/types';
 import { CODE_SANDBOX, codeSrcdoc } from '../model/code';
-import { nodeCss, rgba, slug } from '../model/css';
+import { effectiveSizing, nodeCss, rgba, slug } from '../model/css';
 import { resolveNode } from '../model/resolve';
 import { fontHrefFor, type FontUse } from '../model/fonts';
 import { BREAKPOINTS } from '../model/factory';
@@ -172,7 +172,56 @@ export function renderPageParts(ctx: PageCtx): PageParts {
   const fonts: FontUse[] = [];
   const addFont = (ts: WNode['textStyle']) => { if (ts) fonts.push({ family: ts.fontFamily, weight: ts.fontWeight, italic: ts.italic }); };
 
+  // Inhaltsbreite: In breiten Fenstern bleibt der Inhalt mittig, Flächen laufen bis zum Rand.
+  // „Bänder“ sind das Webseiten-Board und alle Boards darin, die (im Layout) die volle Breite füllen.
+  const cw = root.contentWidth && root.contentWidth > 0 ? Math.round(root.contentWidth) : 0;
+  const bands = new Map<string, number>(); // Band → verfügbare Inhaltsbreite in seinem Eltern-Element
+  const bandParents = new Set<string>();
+  const padX = (b: WNode) => { const L = resolveNode(b, 'desktop').layout; return L ? L.padding[1] + L.padding[3] : 0; };
+  if (cw) {
+    const walk = (b: WNode, avail: number) => {
+      bands.set(b.id, avail);
+      const rb = resolveNode(b, 'desktop');
+      const L = rb.layout;
+      if (!L || L.type !== 'flex') return;
+      const flow = b.children.map(id => page.nodes[id]).filter(c => c && !c.absolute && !(c.pin?.mode === 'fixed' && resolveNode(c, 'desktop').w < rb.w - 1));
+      // Volle Breite: untereinander und füllend, oder einziges füllendes Element in einer Reihe
+      if (L.direction === 'row' && flow.length !== 1) return;
+      for (const ch of flow) {
+        if (ch.type !== 'board' || effectiveSizing(resolveNode(ch, 'desktop'), true).h !== 'fill') continue;
+        bandParents.add(b.id);
+        walk(ch, avail - padX(b));
+      }
+    };
+    walk(root, cw);
+  }
+  const gutter = (w: number) => `max(0px, (100% - ${Math.max(0, w)}px) / 2)`;
+
   const cssFor = (n: WNode, bp: Breakpoint, parent: WNode | undefined): Css => {
+    const c = cssForBase(n, bp, parent);
+    if (!cw) return c;
+    const pAvail = parent ? bands.get(parent.id) : undefined;
+    // Frei platzierte Ebenen in einem Band rücken um den freien Rand nach rechts
+    if (pAvail !== undefined && c.position === 'absolute' && c.left !== undefined) c.left = `calc(${c.left} + ${gutter(pAvail)})`;
+    // Feste oder füllende Bereiche untereinander zwischen Bändern: mittig im Inhaltsbereich
+    if (parent && pAvail !== undefined && bandParents.has(parent.id) && !bands.has(n.id) && c.position !== 'absolute' && c.position !== 'fixed') {
+      const PL = resolveNode(parent, bp).layout;
+      if (PL?.type === 'flex' && PL.direction === 'column') { const g = gutter(pAvail - padX(parent)); c['margin-left'] = g; c['margin-right'] = g; }
+    }
+    // Band mit Layout (ohne weitere Bänder darin): Innenabstand links/rechts wächst mit dem Fenster
+    const avail = bands.get(n.id);
+    if (avail !== undefined && !bandParents.has(n.id)) {
+      const L = resolveNode(n, bp).layout;
+      if (L) {
+        const [, r, , l] = L.padding;
+        c['padding-left'] = `max(${l}px, calc((100% - ${Math.max(0, avail)}px) / 2 + ${l}px))`;
+        c['padding-right'] = `max(${r}px, calc((100% - ${Math.max(0, avail)}px) / 2 + ${r}px))`;
+      }
+    }
+    return c;
+  };
+
+  const cssForBase = (n: WNode, bp: Breakpoint, parent: WNode | undefined): Css => {
     const rn = resolveNode(n, bp);
     const pl = parent ? resolveNode(parent, bp).layout : null;
     const c = nodeCss(rn, pl);
