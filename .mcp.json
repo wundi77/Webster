@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "webster": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["bridge/webster-mcp.mjs"]
+    }
+  }
+}

@@ -1,0 +1,1323 @@
+import { PageSeoFields, SiteFields, useDialog } from './SiteSettings';
+import { NavInsertSection, NavSection } from './NavSection';
+import { FormInsertSection, FormSection } from './FormSection';
+import { EmbedInsertSection, EmbedSection } from './EmbedSection';
+import { CodeBlockSection, CodeInsertSection, CustomCssField, SiteCodeSection } from './CodeSection';
+import { VectorSection } from './VectorSection';
+import { isShape } from '../model/vectorCore';
+import { useState, type ReactNode } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useEditor, viewPage, pageOf } from '../store';
+import { allPages, isPageBoard, pageBoard } from '../model/pageRules';
+import type { AlignItems, BlendMode, Fill, Justify, Layout, Rect, Shadow, Sizing, Stroke, TextStyle, Track, WNode } from '../model/types';
+import {
+  addLayout, align, distribute, originalImageSize, pickFiles, replaceImage, resetOverrides, updateNodes,
+} from '../model/commands';
+import { BOARD_PRESETS, BREAKPOINTS, DEFAULT_FILL, makeFill, makeShadow, makeStroke } from '../model/factory';
+import { FONTS, WEIGHT_NAMES, ensureFont, fontInfo } from '../model/fonts';
+import { cssText, nodeCss, slug } from '../model/css';
+import { overrideKeys, PROP_NAMES } from '../model/resolve';
+import { Icons } from '../ui/icons';
+import { ColorField, IconButton, Menu, NumberField, Section, Seg, MOD, ALT, SHIFT } from '../ui/controls';
+import { rgba } from '../model/css';
+import { gradientCss } from '../model/gradient';
+import type { PaintPatch } from '../ui/ColorPicker';
+import { addVariant, renameComponent, renameVariant, setInstanceVariant, addColor, addGradient, patchFill, applyTextStyle, detachInstances, hasOverrides, instanceCount, resetInstances, showMain, isComponentPage } from '../model/library';
+import { instanceRootOf, variantSetOf, variantsOf } from '../model/components';
+import { clearGuides, defaultGrid, gridCols, setGrid, useView } from '../model/guides';
+import type { ColumnGrid } from '../model/types';
+import { HOVER_NAMES, withState } from '../model/hover';
+import { openPreview } from '../preview/bridge';
+import type { Link, RevealType } from '../model/types';
+import { TYPO_KEYS, type ColorAsset } from '../model/types';
+
+type Upd = (fn: (n: WNode) => void, key: string) => void;
+
+/** Ausgewählte Ebenen, so wie sie im aktuellen Breakpoint aussehen */
+function useSelected(): WNode[] {
+  return useEditor(useShallow(s => {
+    const p = viewPage(s);
+    const nodes = s.selection.map(id => p.nodes[id]).filter(Boolean);
+    return s.interaction === 'normal' ? nodes : nodes.map(n => withState(n, s.interaction));
+  }));
+}
+
+function useParents(nodes: WNode[]): (WNode | undefined)[] {
+  return useEditor(useShallow(s => {
+    const p = viewPage(s);
+    return nodes.map(n => (n.parentId ? p.nodes[n.parentId] : undefined));
+  }));
+}
+
+/** Gemessene Größe/Position (relativ zum Board) */
+function useMeasured(ids: string[]): (Rect | undefined)[] {
+  return useEditor(useShallow(s => ids.map(id => s.geom[id])));
+}
+
+function common<T>(nodes: WNode[], get: (n: WNode) => T): T | undefined {
+  if (!nodes.length) return undefined;
+  const v = get(nodes[0]);
+  return nodes.every(n => JSON.stringify(get(n)) === JSON.stringify(v)) ? v : undefined;
+}
+
+const commonVal = <T,>(vals: T[]): T | undefined => (vals.length && vals.every(v => v === vals[0]) ? vals[0] : undefined);
+const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+
+export function RightPanel() {
+  const [tab, setTab] = useState<'design' | 'proto' | 'code'>('design');
+  const tabs: [typeof tab, string][] = [['design', 'Dokument'], ['proto', 'Elemente'], ['code', 'Code']];
+  return (
+    <>
+      <div className="tabs" role="tablist">
+        {tabs.map(([k, l]) => (
+          <button key={k} className={`tab${tab === k ? ' active' : ''}`} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>
+        ))}
+      </div>
+      <div className="panel-body">
+        {tab === 'design' && <DesignTab />}
+        {tab === 'proto' && <ProtoTab />}
+        {tab === 'code' && <CodeTab />}
+      </div>
+    </>
+  );
+}
+
+function DesignTab() {
+  const nodes = useSelected();
+  const parents = useParents(nodes);
+  if (!nodes.length) return <PageSettings />;
+  const ids = nodes.map(n => n.id);
+  const upd: Upd = (fn, key) => updateNodes(ids, fn, key);
+  const types = new Set(nodes.map(n => n.type));
+  const only = (t: WNode['type']) => types.size === 1 && types.has(t);
+  const layoutParents = parents.filter(p => p?.layout) as WNode[];
+  const allInLayoutParent = layoutParents.length === nodes.length;
+  return (
+    <>
+      <StateSwitch nodes={nodes} />
+      <BreakpointNotice nodes={nodes} />
+      {nodes.length === 1 && <ComponentSection node={nodes[0]} />}
+      {nodes.length === 1 && <NavSection node={nodes[0]} />}
+      {nodes.length === 1 && nodes[0].embed && <EmbedSection node={nodes[0]} />}
+      {nodes.length === 1 && nodes[0].codeBlock && <CodeBlockSection node={nodes[0]} />}
+      {nodes.length === 1 && nodes[0].vector && <VectorSection node={nodes[0]} />}
+      <AlignBar count={nodes.length} />
+      <MeasuresSection nodes={nodes} parents={parents} upd={upd} />
+      {allInLayoutParent && <LayoutItemSection nodes={nodes} parents={layoutParents} upd={upd} />}
+      {(only('board') || only('rect')) && <LayoutSection nodes={nodes} upd={upd} />}
+      {only('board') && <BoardSection nodes={nodes} upd={upd} />}
+      {only('board') && <GridSection nodes={nodes} />}
+      {only('image') && nodes.length === 1 && <ImageSection node={nodes[0]} upd={upd} />}
+      <LayerSection nodes={nodes} upd={upd} />
+      {only('text') && <TextSection nodes={nodes} upd={upd} />}
+      <FillSection nodes={nodes} upd={upd} isText={only('text')} isColor={nodes.every(n => n.type === 'vector' && !isShape(n.vector))}
+        noConic={nodes.some(n => n.type === 'vector')} />
+      {!types.has('text') && nodes.every(n => n.type !== 'vector' || isShape(n.vector)) && <StrokeSection nodes={nodes} upd={upd} />}
+      <ShadowSection nodes={nodes} upd={upd} />
+      <BlurSection nodes={nodes} upd={upd} />
+    </>
+  );
+}
+
+function BreakpointNotice({ nodes }: { nodes: WNode[] }) {
+  const bp = useEditor(s => s.breakpoint);
+  const raw = useEditor(useShallow(s => s.selection.map(id => pageOf(s).nodes[id]).filter(Boolean) as WNode[]));
+  if (bp === 'desktop') return null;
+  const info = BREAKPOINTS.find(b => b.id === bp)!;
+  const keys = [...new Set(raw.flatMap(n => overrideKeys(n, bp)))];
+  return (
+    <section className="section bp-notice">
+      <div className="bp-notice-head">
+        {bp === 'tablet' ? <Icons.tablet /> : <Icons.mobile />}
+        <span><b>{info.label}</b> – Änderungen gelten nur bis {info.max} px Bildschirmbreite.</span>
+      </div>
+      {keys.length > 0 && (
+        <div className="row">
+          <span className="bp-keys grow" title={keys.map(k => PROP_NAMES[k] ?? k).join(', ')}>
+            Angepasst: {keys.map(k => PROP_NAMES[k] ?? k).join(', ')}
+          </span>
+          <IconButton icon={<Icons.reset />} title={`Anpassungen für ${info.label} zurücksetzen`} onClick={() => resetOverrides(nodes.map(n => n.id))} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AlignBar({ count }: { count: number }) {
+  const multi = count > 1;
+  const t = multi ? 'zueinander' : 'am Board';
+  return (
+    <section className="section alignbar">
+      <div className="row tight">
+        <IconButton icon={<Icons.alignLeft />} title={`Links ausrichten (${t})`} onClick={() => align('left')} />
+        <IconButton icon={<Icons.alignHCenter />} title={`Horizontal zentrieren (${t})`} onClick={() => align('hcenter')} />
+        <IconButton icon={<Icons.alignRight />} title={`Rechts ausrichten (${t})`} onClick={() => align('right')} />
+        <IconButton icon={<Icons.alignTop />} title={`Oben ausrichten (${t})`} onClick={() => align('top')} />
+        <IconButton icon={<Icons.alignVCenter />} title={`Vertikal zentrieren (${t})`} onClick={() => align('vcenter')} />
+        <IconButton icon={<Icons.alignBottom />} title={`Unten ausrichten (${t})`} onClick={() => align('bottom')} />
+        <span className="vsep" />
+        <IconButton icon={<Icons.distH />} title="Horizontal verteilen (ab 3 Ebenen)" disabled={count < 3} onClick={() => distribute('h')} />
+        <IconButton icon={<Icons.distV />} title="Vertikal verteilen (ab 3 Ebenen)" disabled={count < 3} onClick={() => distribute('v')} />
+      </div>
+    </section>
+  );
+}
+
+function SizingSeg({ value, onChange, fill, auto, axis }: {
+  value: Sizing | undefined; onChange: (v: Sizing) => void; fill: boolean; auto: boolean; axis: 'h' | 'v';
+}) {
+  const word = axis === 'h' ? 'Breite' : 'Höhe';
+  const opts: { value: Sizing; icon: ReactNode; title: string }[] = [
+    { value: 'fixed', icon: <Icons.sizeFixed style={axis === 'v' ? { transform: 'rotate(90deg)' } : undefined} />, title: `Feste ${word}` },
+  ];
+  if (fill) opts.push({ value: 'fill', icon: <Icons.sizeFill style={axis === 'v' ? { transform: 'rotate(90deg)' } : undefined} />, title: `${word} füllen – nimmt den verfügbaren Platz im Layout ein` });
+  if (auto) opts.push({ value: 'auto', icon: <Icons.sizeAuto style={axis === 'v' ? { transform: 'rotate(90deg)' } : undefined} />, title: `${word} an Inhalt anpassen` });
+  if (opts.length < 2) return null;
+  return <Seg value={value} options={opts} onChange={onChange} />;
+}
+
+function MeasuresSection({ nodes, parents, upd }: { nodes: WNode[]; parents: (WNode | undefined)[]; upd: Upd }) {
+  const measured = useMeasured(nodes.map(n => n.id));
+  const m = (i: number) => measured[i] ?? { x: nodes[i].x, y: nodes[i].y, w: nodes[i].w, h: nodes[i].h };
+  const vals = nodes.map((_, i) => m(i));
+  const flow = nodes.map((n, i) => !!parents[i]?.layout && !n.absolute);
+  const anyFlow = flow.some(Boolean);
+  const canFill = flow.every(Boolean);
+  const canAuto = nodes.every(n => n.type === 'text' || (n.type === 'board' && !!n.layout));
+  const showRadius = nodes.every(n => n.type !== 'text' && n.type !== 'ellipse' && n.type !== 'vector');
+  const individual = showRadius && nodes[0].radii !== null;
+  const radii = nodes[0].radii;
+  const cornerTitles = ['oben links', 'oben rechts', 'unten rechts', 'unten links'];
+
+  const setSizing = (axis: 'h' | 'v', v: Sizing) => {
+    upd(n => {
+      const i = nodes.findIndex(x => x.id === n.id);
+      if (axis === 'h') { n.sizingH = v; if (v === 'fixed' && i >= 0) n.w = Math.round(m(i).w); }
+      else { n.sizingV = v; if (v === 'fixed' && i >= 0) n.h = Math.round(m(i).h); }
+    }, 'sizing-' + axis);
+  };
+
+  return (
+    <Section title="Maße">
+      <div className="row">
+        <NumberField label="B" title="Breite" value={commonVal(vals.map(v => v.w))} min={1}
+          onChange={v => upd(n => { n.w = v; n.sizingH = 'fixed'; }, 'w')} />
+        <NumberField label="H" title="Höhe" value={commonVal(vals.map(v => v.h))} min={1}
+          onChange={v => upd(n => { n.h = v; n.sizingV = 'fixed'; }, 'h')} />
+      </div>
+      {(canFill || canAuto) && (
+        <div className="row sizing-row">
+          <SizingSeg axis="h" value={common(nodes, n => n.sizingH)} fill={canFill} auto={canAuto} onChange={v => setSizing('h', v)} />
+          <SizingSeg axis="v" value={common(nodes, n => n.sizingV)} fill={canFill} auto={canAuto} onChange={v => setSizing('v', v)} />
+        </div>
+      )}
+      <div className="row">
+        <NumberField label="X" title={anyFlow ? 'Position wird vom Layout bestimmt' : 'Position X (relativ zum Board)'} disabled={anyFlow}
+          value={commonVal(vals.map(v => v.x))} onChange={v => upd(n => { n.x = v; }, 'x')} />
+        <NumberField label="Y" title={anyFlow ? 'Position wird vom Layout bestimmt' : 'Position Y (relativ zum Board)'} disabled={anyFlow}
+          value={commonVal(vals.map(v => v.y))} onChange={v => upd(n => { n.y = v; }, 'y')} />
+      </div>
+      <div className="row">
+        <NumberField label={<Icons.rotate />} title="Drehung" suffix="°" value={common(nodes, n => n.rotation)}
+          onChange={v => upd(n => { n.rotation = ((v % 360) + 360) % 360; }, 'rot')} />
+        {showRadius ? (
+          <>
+            <NumberField label={<Icons.radius />} title="Eckenradius" min={0}
+              value={individual ? undefined : common(nodes, n => n.radius)}
+              onChange={v => upd(n => { n.radius = v; n.radii = null; }, 'radius')} />
+            <IconButton icon={<Icons.corners />} title="Ecken einzeln einstellen" active={individual}
+              onClick={() => upd(n => { n.radii = n.radii ? null : [n.radius, n.radius, n.radius, n.radius]; }, 'radii-toggle')} />
+          </>
+        ) : <div className="grow" />}
+      </div>
+      {individual && radii && [[0, 1], [3, 2]].map(pair => (
+        <div className="row" key={pair[0]}>
+          {pair.map(i => (
+            <NumberField key={i} title={`Radius ${cornerTitles[i]}`} min={0} value={common(nodes, n => n.radii?.[i])}
+              label={<Icons.radius style={{ transform: `rotate(${i * 90}deg)` }} />}
+              onChange={v => upd(n => { if (n.radii) n.radii[i] = v; }, 'radii' + i)} />
+          ))}
+        </div>
+      ))}
+    </Section>
+  );
+}
+
+const JUSTIFY: [Justify, string][] = [
+  ['start', 'Am Anfang'], ['center', 'Mittig'], ['end', 'Am Ende'],
+  ['space-between', 'Abstand dazwischen'], ['space-around', 'Abstand rundherum'], ['space-evenly', 'Gleichmäßig verteilt'],
+];
+
+const alignOpts = (row: boolean): { value: AlignItems; icon: ReactNode; title: string }[] => {
+  const rot = row ? { transform: 'rotate(90deg)' } : undefined;
+  return [
+    { value: 'start', icon: <Icons.alignStart style={rot} />, title: row ? 'Oben ausrichten' : 'Links ausrichten' },
+    { value: 'center', icon: <Icons.alignCenter style={rot} />, title: 'Mittig ausrichten' },
+    { value: 'end', icon: <Icons.alignEnd style={rot} />, title: row ? 'Unten ausrichten' : 'Rechts ausrichten' },
+    { value: 'stretch', icon: <Icons.alignStretch style={rot} />, title: 'Strecken' },
+  ];
+};
+
+function LayoutSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
+  const L = nodes.length === 1 ? nodes[0].layout : common(nodes, n => n.layout);
+  const any = nodes.some(n => n.layout);
+  const [indivPad, setIndivPad] = useState(false);
+  const setL = <K extends keyof Layout>(k: K, v: Layout[K]) => upd(n => { if (n.layout) n.layout[k] = v; }, 'layout-' + k);
+  const add = (type: 'flex' | 'grid') => nodes.forEach(n => addLayout(n.id, type));
+
+  if (!any) {
+    return (
+      <Section title="Layout" empty actions={<>
+        <IconButton icon={<Icons.flexRow />} title={`Flex-Layout hinzufügen (${SHIFT}A) – Elemente automatisch in Reihe oder Spalte anordnen`} onClick={() => add('flex')} />
+        <IconButton icon={<Icons.grid />} title="Grid-Layout hinzufügen – Elemente in Spalten und Zeilen anordnen" onClick={() => add('grid')} />
+      </>} />
+    );
+  }
+  if (!L) return <Section title="Layout"><p className="hint">Die ausgewählten Boards haben unterschiedliche Layouts.</p></Section>;
+
+  const row = L.type === 'flex' && L.direction === 'row';
+  const pad = L.padding;
+  const padSame = pad[0] === pad[2] && pad[1] === pad[3];
+  const showIndiv = indivPad || !padSame;
+
+  return (
+    <Section title={L.type === 'flex' ? 'Flex-Layout' : 'Grid-Layout'}
+      actions={<IconButton icon={<Icons.minus />} title="Layout entfernen" onClick={() => upd(n => { n.layout = null; }, 'layout-del')} />}>
+      <div className="row">
+        <Seg value={L.type} onChange={v => setL('type', v)} options={[
+          { value: 'flex', icon: <Icons.flexRow />, title: 'Flex – Reihe oder Spalte' },
+          { value: 'grid', icon: <Icons.grid />, title: 'Grid – Spalten und Zeilen' },
+        ]} />
+        {L.type === 'flex' && (
+          <>
+            <Seg value={L.direction} onChange={v => setL('direction', v)} options={[
+              { value: 'row', icon: <Icons.flexRow />, title: 'Nebeneinander (Reihe)' },
+              { value: 'column', icon: <Icons.flexCol />, title: 'Untereinander (Spalte)' },
+            ]} />
+            <IconButton icon={<Icons.wrap />} title="Umbrechen, wenn der Platz nicht reicht" active={L.wrap} onClick={() => setL('wrap', !L.wrap)} />
+          </>
+        )}
+      </div>
+
+      {L.type === 'flex' ? (
+        <>
+          <div className="row">
+            <span className="lbl">Verteilung</span>
+            <select className="select grow" value={L.justify} aria-label="Verteilung in Hauptrichtung" onChange={e => setL('justify', e.target.value as Justify)}>
+              {JUSTIFY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div className="row">
+            <span className="lbl">{row ? 'Vertikal' : 'Horizontal'}</span>
+            <Seg value={L.align} onChange={v => setL('align', v)} options={alignOpts(row)} />
+          </div>
+          <div className="row">
+            <NumberField label={row ? <Icons.gapH /> : <Icons.gapV />} title="Abstand zwischen den Elementen" min={0} suffix="px" value={L.gap} onChange={v => setL('gap', v)} />
+            {L.wrap
+              ? <NumberField label={row ? <Icons.gapV /> : <Icons.gapH />} title="Abstand zwischen den Zeilen (beim Umbrechen)" min={0} suffix="px" value={L.rowGap} onChange={v => setL('rowGap', v)} />
+              : <div className="grow" />}
+          </div>
+        </>
+      ) : (
+        <>
+          <TrackList title="Spalten" tracks={L.columns} onChange={t => setL('columns', t)} />
+          <TrackList title="Zeilen" tracks={L.rows} onChange={t => setL('rows', t)} emptyHint="Automatisch – so viele wie nötig" />
+          <div className="row">
+            <span className="lbl">Horizontal</span>
+            <Seg value={L.justifyItems} onChange={v => setL('justifyItems', v)} options={alignOpts(false)} />
+          </div>
+          <div className="row">
+            <span className="lbl">Vertikal</span>
+            <Seg value={L.align} onChange={v => setL('align', v)} options={alignOpts(true)} />
+          </div>
+          <div className="row">
+            <NumberField label={<Icons.gapH />} title="Spaltenabstand" min={0} suffix="px" value={L.gap} onChange={v => setL('gap', v)} />
+            <NumberField label={<Icons.gapV />} title="Zeilenabstand" min={0} suffix="px" value={L.rowGap} onChange={v => setL('rowGap', v)} />
+          </div>
+        </>
+      )}
+
+      <div className="row">
+        {showIndiv ? (
+          <>
+            <NumberField label={<Icons.padT />} title="Innenabstand oben" min={0} value={pad[0]} onChange={v => setL('padding', [v, pad[1], pad[2], pad[3]])} />
+            <NumberField label={<Icons.padR />} title="Innenabstand rechts" min={0} value={pad[1]} onChange={v => setL('padding', [pad[0], v, pad[2], pad[3]])} />
+          </>
+        ) : (
+          <>
+            <NumberField label={<Icons.padV />} title="Innenabstand oben und unten" min={0} value={pad[0]} onChange={v => setL('padding', [v, pad[1], v, pad[3]])} />
+            <NumberField label={<Icons.padH />} title="Innenabstand links und rechts" min={0} value={pad[1]} onChange={v => setL('padding', [pad[0], v, pad[2], v])} />
+          </>
+        )}
+        <IconButton icon={<Icons.corners />} title="Innenabstand für jede Seite einzeln" active={showIndiv}
+          onClick={() => { if (showIndiv) { setIndivPad(false); setL('padding', [pad[0], pad[1], pad[0], pad[1]]); } else setIndivPad(true); }} />
+      </div>
+      {showIndiv && (
+        <div className="row">
+          <NumberField label={<Icons.padB />} title="Innenabstand unten" min={0} value={pad[2]} onChange={v => setL('padding', [pad[0], pad[1], v, pad[3]])} />
+          <NumberField label={<Icons.padL />} title="Innenabstand links" min={0} value={pad[3]} onChange={v => setL('padding', [pad[0], pad[1], pad[2], v])} />
+          <div className="ibtn-spacer" />
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function TrackList({ title, tracks, onChange, emptyHint, noAuto, minCount = 0 }: { title: string; tracks: Track[]; onChange: (t: Track[]) => void; emptyHint?: string; noAuto?: boolean; minCount?: number }) {
+  const set = (i: number, t: Partial<Track>) => onChange(tracks.map((x, j) => (j === i ? { ...x, ...t } : x)));
+  return (
+    <div className="tracks">
+      <div className="row">
+        <span className="lbl grow">{title}</span>
+        <IconButton icon={<Icons.plus />} title={`${title.slice(0, -1)} hinzufügen`} onClick={() => onChange([...tracks, { unit: 'fr', value: 1 }])} />
+      </div>
+      {!tracks.length && emptyHint && <p className="hint">{emptyHint}</p>}
+      {tracks.map((t, i) => (
+        <div className="row" key={i}>
+          <span className="track-no">{i + 1}</span>
+          <NumberField title={`${title} ${i + 1}: Größe`} min={0} step={t.unit === 'fr' ? 0.5 : 1} disabled={t.unit === 'auto'}
+            value={t.unit === 'auto' ? undefined : t.value} placeholder={t.unit === 'auto' ? 'auto' : undefined}
+            onChange={v => set(i, { value: v })} />
+          <select className="select unit" value={t.unit} aria-label="Einheit" onChange={e => set(i, { unit: e.target.value as Track['unit'] })}>
+            <option value="fr">Anteil (fr)</option><option value="px">Pixel</option>{!noAuto && <option value="auto">Automatisch</option>}
+          </select>
+          <IconButton icon={<Icons.minus />} title="Entfernen" disabled={tracks.length <= minCount} onClick={() => tracks.length > minCount && onChange(tracks.filter((_, j) => j !== i))} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LayoutItemSection({ nodes, parents, upd }: { nodes: WNode[]; parents: WNode[]; upd: Upd }) {
+  const abs = common(nodes, n => n.absolute);
+  const grid = parents.every(p => p.layout?.type === 'grid');
+  const g = (k: 'col' | 'row' | 'colSpan' | 'rowSpan') => common(nodes, n => n.grid?.[k] ?? (k.endsWith('Span') ? 1 : 0));
+  const setG = (k: 'col' | 'row' | 'colSpan' | 'rowSpan', v: number) =>
+    upd(n => { n.grid = { col: 0, row: 0, colSpan: 1, rowSpan: 1, ...(n.grid ?? {}), [k]: Math.max(k.endsWith('Span') ? 1 : 0, Math.round(v)) }; }, 'grid-' + k);
+  const mm = (k: 'minW' | 'maxW' | 'minH' | 'maxH', title: string, label: string) => (
+    <NumberField label={label} title={`${title} (leer = keine Begrenzung)`} min={0} placeholder="–"
+      value={common(nodes, n => n[k]) ?? undefined}
+      onChange={v => upd(n => { n[k] = v; }, k)} onClear={() => upd(n => { n[k] = null; }, k)} />
+  );
+  return (
+    <Section title="Im Layout">
+      <label className="check">
+        <input type="checkbox" checked={abs === true} onChange={e => upd(n => { n.absolute = e.target.checked; }, 'absolute')} />
+        Frei positionieren (ignoriert das Layout)
+      </label>
+      {abs !== true && (
+        <>
+          <div className="row">
+            <span className="lbl">Ausrichtung</span>
+            <select className="select grow" value={common(nodes, n => n.alignSelf) ?? 'auto'} aria-label="Eigene Ausrichtung"
+              onChange={e => upd(n => { n.alignSelf = e.target.value as WNode['alignSelf']; }, 'alignSelf')}>
+              <option value="auto">Wie das Layout</option><option value="start">Anfang</option><option value="center">Mitte</option>
+              <option value="end">Ende</option><option value="stretch">Strecken</option>
+            </select>
+          </div>
+          {grid && (
+            <>
+              <div className="row">
+                <NumberField label="Sp" title="Spalte (0 = automatisch)" min={0} precision={0} value={g('col')} onChange={v => setG('col', v)} />
+                <NumberField label="×" title="Spalten überspannen" min={1} precision={0} value={g('colSpan')} onChange={v => setG('colSpan', v)} />
+              </div>
+              <div className="row">
+                <NumberField label="Ze" title="Zeile (0 = automatisch)" min={0} precision={0} value={g('row')} onChange={v => setG('row', v)} />
+                <NumberField label="×" title="Zeilen überspannen" min={1} precision={0} value={g('rowSpan')} onChange={v => setG('rowSpan', v)} />
+              </div>
+            </>
+          )}
+          <div className="row">{mm('minW', 'Mindestbreite', 'B↓')}{mm('maxW', 'Maximalbreite', 'B↑')}</div>
+          <div className="row">{mm('minH', 'Mindesthöhe', 'H↓')}{mm('maxH', 'Maximalhöhe', 'H↑')}</div>
+        </>
+      )}
+    </Section>
+  );
+}
+
+function BoardSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
+  const w = common(nodes, n => n.w), h = common(nodes, n => n.h);
+  const match = BOARD_PRESETS.flatMap(g => g.items).find(([, pw, ph]) => pw === w && ph === h);
+  const allRoot = nodes.every(n => n.parentId === null);
+  return (
+    <Section title="Board">
+      <div className="row">
+        <select className="select grow" value={match ? match[0] : ''} aria-label="Größenvorlage"
+          onChange={e => {
+            const item = BOARD_PRESETS.flatMap(g => g.items).find(i => i[0] === e.target.value);
+            if (item) upd(n => { n.w = item[1]; n.h = item[2]; n.sizingH = 'fixed'; n.sizingV = 'fixed'; }, 'preset');
+          }}>
+          <option value="" disabled>Größenvorlage wählen …</option>
+          {BOARD_PRESETS.map(g => (
+            <optgroup key={g.group} label={g.group}>
+              {g.items.map(([name, pw, ph]) => <option key={name} value={name}>{name} – {pw} × {ph}</option>)}
+            </optgroup>
+          ))}
+        </select>
+        <IconButton icon={<Icons.swap />} title="Hoch-/Querformat tauschen" onClick={() => upd(n => { const t = n.w; n.w = n.h; n.h = t; }, 'swap')} />
+      </div>
+      <label className="check">
+        <input type="checkbox" checked={common(nodes, n => n.clip) ?? false}
+          onChange={e => upd(n => { n.clip = e.target.checked; }, 'clip')} />
+        Inhalt am Rand abschneiden
+      </label>
+      {allRoot && (
+        <label className="check" title="Die Breite dieses Boards folgt dem Breakpoint-Umschalter oben (Tablet 768 px, Mobil 390 px).">
+          <input type="checkbox" checked={common(nodes, n => n.site) ?? false}
+            onChange={e => upd(n => { n.site = e.target.checked; }, 'site')} />
+          Webseite – passt sich an Breakpoints an
+        </label>
+      )}
+    </Section>
+  );
+}
+
+/** Spaltenraster und Hilfslinien eines Boards (nur Hilfen im Editor) */
+function GridSection({ nodes }: { nodes: WNode[] }) {
+  const ids = nodes.map(n => n.id);
+  const grid = nodes[0].colGrid ?? null;
+  const bp = useEditor(s => s.breakpoint);
+  const gridsOn = useView(s => s.grids);
+  const guideCount = nodes.reduce((a, n) => a + (n.guides?.length ?? 0), 0);
+  const set = (patch: Partial<ColumnGrid>, key: string) => {
+    if (!grid) return;
+    const next = { ...grid, ...patch };
+    for (const k of Object.keys(patch) as (keyof ColumnGrid)[]) if (patch[k] === undefined) delete next[k];
+    setGrid(ids, next, 'colgrid-' + key);
+  };
+  const indiv = !!grid?.cols?.length;
+  const sepMargin = grid?.marginRight !== undefined;
+  return (
+    <Section title="Spaltenraster" empty={!grid && !guideCount}
+      actions={!grid && <IconButton icon={<Icons.plus />} title="Spaltenraster hinzufügen" onClick={() => setGrid(ids, defaultGrid(), 'colgrid-add')} />}>
+      {grid && (
+        <>
+          <div className="row">
+            {indiv
+              ? <span className="lbl grow">Unterschiedliche Breiten</span>
+              : <NumberField label="Spalten" className="grow" title="Anzahl der Spalten (alle gleich breit)" min={1} max={48} precision={0} value={grid.count} onChange={v => set({ count: v }, 'count')} />}
+            <IconButton icon={<Icons.flexRow />} active={indiv}
+              title={indiv ? 'Alle Spalten wieder gleich breit' : 'Jede Spalte einzeln einstellen (unterschiedliche Breiten)'}
+              onClick={() => indiv ? set({ cols: undefined }, 'cols') : set({ cols: gridCols(grid).map(c => ({ ...c })) }, 'cols')} />
+            <IconButton icon={grid.visible ? <Icons.eye /> : <Icons.eyeOff />} title={grid.visible ? 'Ausblenden' : 'Einblenden'} onClick={() => set({ visible: !grid.visible }, 'vis')} />
+            <IconButton icon={<Icons.minus />} title="Spaltenraster entfernen" onClick={() => setGrid(ids, null, 'colgrid-del')} />
+          </div>
+          {indiv && (
+            <TrackList title="Spalten" noAuto minCount={1} tracks={grid.cols!}
+              onChange={t => set({ cols: t.map(c => ({ unit: c.unit === 'px' ? 'px' : 'fr', value: c.value })), count: t.length }, 'cols')} />
+          )}
+          <div className="row">
+            <NumberField label="Abstand" className="grow" title="Abstand zwischen den Spalten" suffix="px" min={0} precision={0} value={grid.gutter} onChange={v => set({ gutter: v }, 'gutter')} />
+            {!sepMargin && <NumberField label="Rand" className="grow" title="Rand links und rechts" suffix="px" min={0} precision={0} value={grid.margin} onChange={v => set({ margin: v }, 'margin')} />}
+            <IconButton icon={<Icons.corners />} active={sepMargin}
+              title={sepMargin ? 'Rand links und rechts wieder gleich' : 'Rand links und rechts getrennt einstellen'}
+              onClick={() => set({ marginRight: sepMargin ? undefined : grid.margin }, 'mr')} />
+          </div>
+          {sepMargin && (
+            <div className="row">
+              <NumberField label={<Icons.padL />} className="grow" title="Rand links" suffix="px" min={0} precision={0} value={grid.margin} onChange={v => set({ margin: v }, 'margin')} />
+              <NumberField label={<Icons.padR />} className="grow" title="Rand rechts" suffix="px" min={0} precision={0} value={grid.marginRight} onChange={v => set({ marginRight: v }, 'mr')} />
+              <div className="ibtn-spacer" />
+            </div>
+          )}
+          <div className="row">
+            <ColorField color={grid.color} opacity={grid.opacity} onChange={c => set({ ...(c.color ? { color: c.color } : {}), ...(c.opacity !== undefined ? { opacity: c.opacity } : {}) }, 'color')} />
+          </div>
+          <p className="hint">
+            Nur eine Hilfe im Editor – erscheint nicht auf der Website. Ebenen rasten an den Spaltenkanten ein.
+            {bp !== 'desktop' ? ' Änderungen gelten nur für diese Ansicht.' : ' Für Tablet und Mobil kannst du eigene Spalten einstellen.'}
+            {!gridsOn && ' Spaltenraster sind gerade ausgeblendet (⇧G).'}
+          </p>
+        </>
+      )}
+      {guideCount > 0 && (
+        <div className="row">
+          <span className="grow muted">{guideCount === 1 ? '1 Hilfslinie' : `${guideCount} Hilfslinien`}</span>
+          <button type="button" className="btn ghost small" onClick={() => clearGuides(ids)}>Hilfslinien löschen</button>
+        </div>
+      )}
+      {!grid && !guideCount && <p className="hint">Hilfslinien ziehst du aus dem Lineal am Rand der Arbeitsfläche.</p>}
+    </Section>
+  );
+}
+
+function ImageSection({ node, upd }: { node: WNode; upd: Upd }) {
+  return (
+    <Section title="Bild">
+      <div className="row">
+        <select className="select grow" value={node.objectFit ?? 'cover'} aria-label="Bildanpassung"
+          onChange={e => upd(n => { n.objectFit = e.target.value as WNode['objectFit']; }, 'fit')}>
+          <option value="cover">Füllen (zuschneiden)</option>
+          <option value="contain">Einpassen (ganz sichtbar)</option>
+          <option value="fill">Strecken</option>
+        </select>
+      </div>
+      <div className="row">
+        <button className="btn grow" onClick={async () => { const [f] = await pickFiles('image/*', false); if (f) replaceImage(node.id, f); }}>Bild ersetzen …</button>
+        <button className="btn grow" onClick={() => originalImageSize(node.id)}>Originalgröße</button>
+      </div>
+    </Section>
+  );
+}
+
+const BLEND_MODES: [BlendMode, string][] = [
+  ['normal', 'Normal'], ['multiply', 'Multiplizieren'], ['screen', 'Negativ multiplizieren'], ['overlay', 'Ineinanderkopieren'],
+  ['darken', 'Abdunkeln'], ['lighten', 'Aufhellen'], ['color-dodge', 'Farbig abwedeln'], ['color-burn', 'Farbig nachbelichten'],
+  ['hard-light', 'Hartes Licht'], ['soft-light', 'Weiches Licht'], ['difference', 'Differenz'], ['exclusion', 'Ausschluss'],
+  ['hue', 'Farbton'], ['saturation', 'Sättigung'], ['color', 'Farbe'], ['luminosity', 'Luminanz'],
+];
+
+function LayerSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
+  const op = common(nodes, n => n.opacity);
+  const visible = common(nodes, n => n.visible);
+  return (
+    <Section title="Ebene">
+      <div className="row">
+        <select className="select grow" value={common(nodes, n => n.blendMode) ?? ''} aria-label="Mischmodus"
+          onChange={e => upd(n => { n.blendMode = e.target.value as BlendMode; }, 'blend')}>
+          {common(nodes, n => n.blendMode) === undefined && <option value="" disabled>Gemischt</option>}
+          {BLEND_MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <NumberField className="w72" title="Deckkraft" suffix="%" min={0} max={100} precision={0}
+          value={op === undefined ? undefined : Math.round(op * 100)} onChange={v => upd(n => { n.opacity = v / 100; }, 'opacity')} />
+        <IconButton icon={visible === false ? <Icons.eyeOff /> : <Icons.eye />} title={visible === false ? 'Einblenden' : 'Ausblenden (auch nur für Tablet/Mobil möglich)'}
+          onClick={() => upd(n => { n.visible = visible === false; }, 'vis')} />
+      </div>
+    </Section>
+  );
+}
+
+function TextSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
+  const ts = <K extends keyof TextStyle>(k: K) => common(nodes, n => n.textStyle![k]);
+  const setTs = <K extends keyof TextStyle>(k: K, v: TextStyle[K]) => upd(n => {
+    if (!n.textStyle) return;
+    n.textStyle[k] = v;
+    if ((TYPO_KEYS as string[]).includes(k)) n.textStyleRef = null; // eigene Typografie = vom Textstil lösen
+  }, 'ts-' + k);
+  const family = ts('fontFamily');
+  const info = family ? fontInfo(family) : undefined;
+  const weights = info?.weights ?? [100, 200, 300, 400, 500, 600, 700, 800, 900];
+  const weight = ts('fontWeight');
+  return (
+    <Section title="Text">
+      <TextStyleRow nodes={nodes} />
+      <div className="row">
+        <select className="select grow" value={family ?? ''} aria-label="Schriftart"
+          onChange={e => {
+            const v = e.target.value;
+            ensureFont(v);
+            const f = fontInfo(v);
+            upd(n => {
+              if (!n.textStyle) return;
+              n.textStyleRef = null;
+              n.textStyle.fontFamily = v;
+              if (f && !f.weights.includes(n.textStyle.fontWeight)) {
+                const cur = n.textStyle.fontWeight;
+                n.textStyle.fontWeight = f.weights.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a));
+              }
+            }, 'font');
+          }}>
+          {family === undefined && <option value="" disabled>Gemischt</option>}
+          {family && !info && <option value={family}>{family}</option>}
+          <optgroup label="Google Fonts">{FONTS.filter(f => !f.system).map(f => <option key={f.family} value={f.family}>{f.family}</option>)}</optgroup>
+          <optgroup label="Systemschriften">{FONTS.filter(f => f.system).map(f => <option key={f.family} value={f.family}>{f.family}</option>)}</optgroup>
+        </select>
+      </div>
+      <div className="row">
+        <select className="select grow" value={weight ?? ''} aria-label="Schriftschnitt"
+          onChange={e => setTs('fontWeight', Number(e.target.value))}>
+          {weight === undefined && <option value="" disabled>Gemischt</option>}
+          {weights.map(w => <option key={w} value={w}>{w} {WEIGHT_NAMES[w]}</option>)}
+        </select>
+        <NumberField className="w72" title="Schriftgröße" suffix="px" min={1} value={ts('fontSize')} onChange={v => setTs('fontSize', v)} />
+      </div>
+      <div className="row">
+        <NumberField label="ZH" title="Zeilenhöhe (Vielfaches der Schriftgröße)" min={0} step={0.05} value={ts('lineHeight')} onChange={v => setTs('lineHeight', v)} />
+        <NumberField label="LW" title="Laufweite / Buchstabenabstand" suffix="px" step={0.1} value={ts('letterSpacing')} onChange={v => setTs('letterSpacing', v)} />
+      </div>
+      <div className="row">
+        <Seg value={ts('textAlign')} onChange={v => setTs('textAlign', v)} options={[
+          { value: 'left', icon: <Icons.textLeft />, title: 'Linksbündig' },
+          { value: 'center', icon: <Icons.textCenter />, title: 'Zentriert' },
+          { value: 'right', icon: <Icons.textRight />, title: 'Rechtsbündig' },
+          { value: 'justify', icon: <Icons.textJustify />, title: 'Blocksatz' },
+        ]} />
+        <div className="grow" />
+        <IconButton icon={<Icons.italic />} title="Kursiv" active={ts('italic') === true} onClick={() => setTs('italic', ts('italic') !== true)} />
+        <IconButton icon={<Icons.underline />} title="Unterstrichen" active={ts('decoration') === 'underline'}
+          onClick={() => setTs('decoration', ts('decoration') === 'underline' ? 'none' : 'underline')} />
+        <IconButton icon={<Icons.strike />} title="Durchgestrichen" active={ts('decoration') === 'line-through'}
+          onClick={() => setTs('decoration', ts('decoration') === 'line-through' ? 'none' : 'line-through')} />
+      </div>
+      <div className="row">
+        <select className="select grow" value={ts('transform') ?? ''} aria-label="Groß-/Kleinschreibung"
+          onChange={e => setTs('transform', e.target.value as TextStyle['transform'])}>
+          <option value="none">Normale Schreibung</option>
+          <option value="uppercase">GROSSBUCHSTABEN</option>
+          <option value="lowercase">kleinbuchstaben</option>
+          <option value="capitalize">Wortanfänge Groß</option>
+        </select>
+      </div>
+    </Section>
+  );
+}
+
+function FillSection({ nodes, upd, isText, isColor, noConic }: { nodes: WNode[]; upd: Upd; isText: boolean; isColor?: boolean; noConic?: boolean }) {
+  const fills = nodes[0].fills;
+  const mixed = !nodes.every(n => JSON.stringify(n.fills) === JSON.stringify(fills));
+  const set = (fn: (f: Fill[]) => void, key: string) => { const next = clone(fills); fn(next); upd(n => { n.fills = next; }, key); };
+  const add = () => set(f => { f.unshift(makeFill(fills[0]?.color ?? DEFAULT_FILL[nodes[0].type])); }, 'fill-add');
+  return (
+    <Section title={isText ? 'Textfarbe' : isColor ? 'Farbe' : 'Füllung'} empty={!fills.length}
+      actions={<IconButton icon={<Icons.plus />} title="Füllung hinzufügen" onClick={add} />}>
+      {mixed && <p className="hint">Unterschiedliche Füllungen – Änderungen übernehmen die Füllung der ersten Ebene für alle.</p>}
+      {fills.map((f, i) => (
+        <div className="row" key={f.id}>
+          <PaintColor color={f.color} opacity={f.opacity} colorRef={f.colorRef} gradient={f.gradient} gradientRef={f.gradientRef}
+            allowGradient noConic={noConic} onChange={c => set(x => patchFill(x[i], c), 'fill' + i)} />
+          <IconButton icon={f.visible ? <Icons.eye /> : <Icons.eyeOff />} title={f.visible ? 'Ausblenden' : 'Einblenden'}
+            onClick={() => set(x => { x[i].visible = !x[i].visible; }, 'fill-vis')} />
+          <IconButton icon={<Icons.minus />} title="Füllung entfernen" onClick={() => set(x => { x.splice(i, 1); }, 'fill-del')} />
+        </div>
+      ))}
+    </Section>
+  );
+}
+
+function StrokeSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
+  const strokes = nodes[0].strokes;
+  const set = (fn: (s: Stroke[]) => void, key: string) => { const next = clone(strokes); fn(next); upd(n => { n.strokes = next; }, key); };
+  return (
+    <Section title="Kontur" empty={!strokes.length}
+      actions={!strokes.length && <IconButton icon={<Icons.plus />} title="Kontur hinzufügen" onClick={() => set(s => { s.push(makeStroke()); }, 'stroke-add')} />}>
+      {strokes.map((st, i) => (
+        <div key={st.id}>
+          <div className="row">
+            <PaintColor color={st.color} opacity={st.opacity} colorRef={st.colorRef}
+              onChange={c => set(x => Object.assign(x[i], c), 'stroke' + i)} />
+            <IconButton icon={st.visible ? <Icons.eye /> : <Icons.eyeOff />} title={st.visible ? 'Ausblenden' : 'Einblenden'}
+              onClick={() => set(x => { x[i].visible = !x[i].visible; }, 'stroke-vis')} />
+            <IconButton icon={<Icons.minus />} title="Kontur entfernen" onClick={() => set(x => { x.splice(i, 1); }, 'stroke-del')} />
+          </div>
+          <div className="row">
+            <NumberField className="w72" title="Konturstärke" suffix="px" min={0} value={st.width} onChange={v => set(x => { x[i].width = v; }, 'stroke-w')} />
+            <select className="select grow" value={st.position} aria-label="Konturposition" onChange={e => set(x => { x[i].position = e.target.value as Stroke['position']; }, 'stroke-pos')}>
+              <option value="inside">Innen</option><option value="center">Mittig</option><option value="outside">Außen</option>
+            </select>
+            <select className="select grow" value={st.style} aria-label="Konturstil" onChange={e => set(x => { x[i].style = e.target.value as Stroke['style']; }, 'stroke-style')}>
+              <option value="solid">Durchgezogen</option><option value="dashed">Gestrichelt</option><option value="dotted">Gepunktet</option>
+            </select>
+          </div>
+        </div>
+      ))}
+    </Section>
+  );
+}
+
+function ShadowSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
+  const shadows = nodes[0].shadows;
+  const set = (fn: (s: Shadow[]) => void, key: string) => { const next = clone(shadows); fn(next); upd(n => { n.shadows = next; }, key); };
+  return (
+    <Section title="Schatten" empty={!shadows.length}
+      actions={<IconButton icon={<Icons.plus />} title="Schatten hinzufügen" onClick={() => set(s => { s.push(makeShadow()); }, 'sh-add')} />}>
+      {shadows.map((sh, i) => (
+        <div key={sh.id} className="subgroup">
+          <div className="row">
+            <select className="select grow" value={sh.kind} aria-label="Schattenart" onChange={e => set(x => { x[i].kind = e.target.value as Shadow['kind']; }, 'sh-kind')}>
+              <option value="drop">Schlagschatten</option><option value="inner">Innenschatten</option>
+            </select>
+            <IconButton icon={sh.visible ? <Icons.eye /> : <Icons.eyeOff />} title={sh.visible ? 'Ausblenden' : 'Einblenden'}
+              onClick={() => set(x => { x[i].visible = !x[i].visible; }, 'sh-vis')} />
+            <IconButton icon={<Icons.minus />} title="Schatten entfernen" onClick={() => set(x => { x.splice(i, 1); }, 'sh-del')} />
+          </div>
+          <div className="row">
+            <NumberField label="X" title="Versatz X" value={sh.x} onChange={v => set(x => { x[i].x = v; }, 'sh-x' + i)} />
+            <NumberField label="Y" title="Versatz Y" value={sh.y} onChange={v => set(x => { x[i].y = v; }, 'sh-y' + i)} />
+          </div>
+          <div className="row">
+            <NumberField label="U" title="Unschärfe" min={0} value={sh.blur} onChange={v => set(x => { x[i].blur = v; }, 'sh-b' + i)} />
+            <NumberField label="A" title="Ausdehnung" value={sh.spread} onChange={v => set(x => { x[i].spread = v; }, 'sh-s' + i)} />
+          </div>
+          <div className="row">
+            <PaintColor color={sh.color} opacity={sh.opacity} colorRef={sh.colorRef}
+              onChange={c => set(x => Object.assign(x[i], c), 'sh-c' + i)} />
+          </div>
+        </div>
+      ))}
+    </Section>
+  );
+}
+
+function BlurSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
+  const blur = common(nodes, n => n.blur);
+  const active = nodes.some(n => n.blur > 0);
+  return (
+    <Section title="Unschärfe" empty={!active}
+      actions={!active && <IconButton icon={<Icons.plus />} title="Ebenenunschärfe hinzufügen" onClick={() => upd(n => { n.blur = 4; }, 'blur-add')} />}>
+      {active && (
+        <div className="row">
+          <NumberField label="U" title="Ebenenunschärfe" suffix="px" min={0} value={blur} onChange={v => upd(n => { n.blur = v; }, 'blur')} />
+          <IconButton icon={<Icons.minus />} title="Unschärfe entfernen" onClick={() => upd(n => { n.blur = 0; }, 'blur-del')} />
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function PageSettings() {
+  const page = useEditor(viewPage);
+  const doc = useEditor(s => s.doc);
+  const [kbOpen, setKbOpen] = useState(false);
+  const shortcuts: [string, string][] = [
+    ['V', 'Verschieben'], ['R', 'Rechteck'], ['E', 'Ellipse'], ['T', 'Text'], ['L', 'Linie'], [`${SHIFT}L`, 'Pfeil'], ['I', 'Icon einfügen'], ['K', 'Bild einfügen'], [`${SHIFT}R`, 'Lineale ein/aus'], [`${SHIFT}H`, 'Hilfslinien ein/aus'], [`${SHIFT}G`, 'Spaltenraster ein/aus'],
+    ['H / Leertaste', 'Ansicht verschieben'], ['P', 'Live-Vorschau öffnen'], [`${SHIFT}A`, 'Flex-Layout hinzufügen'],
+    [`${ALT}1 / 2 / 3`, 'Desktop / Tablet / Mobil'],
+    [`${MOD}Z`, 'Rückgängig'], [`${SHIFT}${MOD}Z`, 'Wiederholen'],
+    [`${MOD}C / ${MOD}V`, 'Kopieren / Einfügen'], [`${MOD}D`, 'Duplizieren'], [`${MOD}A`, 'Alles auswählen'],
+    [`${ALT}${MOD}G`, 'In Board packen'], [`${MOD}K`, 'Komponente erstellen'], [`${SHIFT}${MOD}K`, 'Von Komponente lösen'], [`${SHIFT}${MOD}E`, 'Website exportieren'], [`${MOD}↑ / ↓`, 'Ebene nach vorne / hinten'],
+    ['Pfeiltasten', '1 px verschieben (mit ⇧ 10 px)'], [`${SHIFT}0 / 1 / 2`, '100 % / Alles / Auswahl einpassen'],
+    [`${MOD} + Mausrad`, 'Zoomen'], ['Doppelklick', 'Text bearbeiten'], ['Enter', 'Inhalt eines Boards auswählen'],
+    [`${ALT} beim Ziehen`, 'Kopie ziehen'], ['⇧ beim Ziehen', 'Achse / Seitenverhältnis halten'],
+  ];
+  return (
+    <>
+      <Section title="Arbeitsfläche">
+        <div className="row">
+          <ColorField color={page.background}
+            onChange={c => c.color && useEditor.getState().mutate(p => { p.background = c.color!; }, { key: 'page-bg' })} />
+        </div>
+      </Section>
+      {doc.pages.some(p => p.id === page.id) && (
+        <Section title="Suchmaschinen">
+          <PageSeoFields pageId={page.id} />
+        </Section>
+      )}
+      <Section title="Website">
+        <p className="proto-hint">Name, Sprache und Symbol gelten für alle Seiten.</p>
+        <SiteFields />
+        <div className="row"><button className="btn grow" onClick={() => useDialog.getState().show('export')}><Icons.download /> Website exportieren …</button></div>
+      </Section>
+      <SiteCodeSection />
+      <section className="section">
+        <button type="button" className="kb-toggle" aria-expanded={kbOpen} onClick={() => setKbOpen(o => !o)}>
+          <span>{kbOpen ? 'Tastenkürzel ausblenden' : 'Tastenkürzel einblenden'}</span>
+          <Icons.chevronDown className={kbOpen ? 'kb-chev up' : 'kb-chev'} />
+        </button>
+        {kbOpen && (
+          <dl className="kb-list">
+            {shortcuts.map(([k, l]) => <div key={k}><dt>{l}</dt><dd><kbd>{k}</kbd></dd></div>)}
+          </dl>
+        )}
+      </section>
+    </>
+  );
+}
+
+function CodeTab() {
+  const nodes = useSelected();
+  const parents = useParents(nodes);
+  const [copied, setCopied] = useState(false);
+  if (!nodes.length) return <p className="empty-hint">Wähle eine Ebene aus, um ihr CSS zu sehen und eigenes CSS zu ergänzen. Code für die ganze Website findest du im Reiter „Dokument“ (ohne Auswahl) unter „Code der Website“.</p>;
+  const code = nodes.map((n, i) => `/* ${n.name} */\n${cssText('.' + slug(n.name), nodeCss(n, parents[i]?.layout ?? null))}`).join('\n\n');
+  return (
+    <>
+    <CustomCssField nodes={nodes} />
+    <section className="section">
+      <div className="section-head"><span>CSS</span>
+        <button className="btn small" onClick={() => { navigator.clipboard?.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
+          {copied ? 'Kopiert' : 'Kopieren'}
+        </button>
+      </div>
+      <pre className="code">{code}</pre>
+    </section>
+    </>
+  );
+}
+
+// ---------- Bibliothek: Komponenten, Farben, Textstile ----------
+
+function ComponentSection({ node }: { node: WNode }) {
+  const page = useEditor(viewPage);
+  const doc = useEditor(s => s.doc);
+  const root = instanceRootOf(page, node.id);
+  if (node.variantSet) {
+    const variants = variantsOf(page, node.id);
+    const count = instanceCount(doc, node.id);
+    return (
+      <section className="section comp-section">
+        <div className="comp-head"><Icons.component /><span><b>{node.name}</b><br />Komponente mit {variants.length} Varianten · {count} {count === 1 ? 'Kopie' : 'Kopien'}</span></div>
+        <label className="variant-field">Name der Komponente
+          <input className="textinput" key={node.id + node.name} defaultValue={node.name} spellCheck={false}
+            onBlur={e => { const v = e.target.value.trim(); if (v && v !== node.name) renameComponent(node.id, v); }}
+            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+        </label>
+        <div className="variant-list">
+          {variants.map(v => (
+            <div className="row" key={v.id}>
+              <VariantName id={v.id} name={v.variantName ?? v.name} />
+              <IconButton icon={<Icons.target />} title="Diese Variante auswählen" onClick={() => useEditor.getState().setSelection([v.id])} />
+            </div>
+          ))}
+        </div>
+        {variants[0] && <button type="button" className="btn grow" onClick={() => addVariant(variants[variants.length - 1].id)}><Icons.plus /> Variante hinzufügen</button>}
+        <p className="hint">Jede Variante ist ein eigenes Original. An einer Kopie wählst du rechts aus, welche Variante sie zeigt.</p>
+      </section>
+    );
+  }
+  if (node.isMain) {
+    const count = instanceCount(doc, node.id);
+    const set = variantSetOf(page, node.id);
+    return (
+      <section className="section comp-section">
+        <div className="comp-head"><Icons.component /><span>
+          {set ? <><b>{set.name}</b><br />Variante · {count} {count === 1 ? 'Kopie' : 'Kopien'}</> : <><b>{node.name}</b><br />Hauptkomponente · {count} {count === 1 ? 'Kopie' : 'Kopien'}</>}
+        </span></div>
+        {set && (
+          <label className="variant-field">Name der Variante
+            <VariantName id={node.id} name={node.variantName ?? node.name} />
+          </label>
+        )}
+        <button type="button" className="btn grow" title="Kopiert dieses Original als neue Variante daneben – z. B. für „Sekundär“ oder „Deaktiviert“"
+          onClick={() => addVariant(node.id)}><Icons.plus /> Variante hinzufügen</button>
+        <p className="hint">Änderungen hier übernehmen alle Kopien – außer dem, was in einer Kopie bewusst geändert wurde.</p>
+      </section>
+    );
+  }
+  if (!root) return null;
+  const r = page.nodes[root];
+  const mainExists = allPages(doc).some(p => p.nodes[r.componentId!]?.isMain);
+  const mainName = allPages(doc).map(p => p.nodes[r.componentId!]).find(Boolean)?.name ?? 'Gelöscht';
+  const over = hasOverrides(page, root);
+  const pm = allPages(doc).find(p => p.nodes[r.componentId!]?.isMain);
+  const set = pm ? variantSetOf(pm, r.componentId!) : null;
+  const variants = set && pm ? variantsOf(pm, set.id) : [];
+  return (
+    <section className="section comp-section">
+      <div className="comp-head"><Icons.instance /><span><b>{set ? set.name : mainName}</b><br />{root === node.id ? 'Kopie einer Komponente' : `Teil der Kopie „${r.name}“`}</span></div>
+      {!mainExists && <p className="hint">Das Original wurde gelöscht.</p>}
+      {variants.length > 1 && (
+        <label className="variant-field">Variante
+          <select className="select" value={r.componentId} onChange={e => setInstanceVariant(root, e.target.value)}>
+            {variants.map(v => <option key={v.id} value={v.id}>{v.variantName ?? v.name}</option>)}
+          </select>
+        </label>
+      )}
+      <div className="row">
+        {mainExists && <button className="btn grow" onClick={() => showMain(r.componentId!)}>Original zeigen</button>}
+        <IconButton icon={<Icons.reset />} title="Abweichungen zurücksetzen – wieder genau wie das Original" disabled={!over || !mainExists} onClick={() => resetInstances([root])} />
+        <IconButton icon={<Icons.unlink />} title={`Von Komponente lösen (${SHIFT}${MOD}K)`} onClick={() => detachInstances([root])} />
+      </div>
+    </section>
+  );
+}
+
+function VariantName({ id, name }: { id: string; name: string }) {
+  return (
+    <input className="textinput grow" key={id + name} defaultValue={name} aria-label="Name der Variante" spellCheck={false}
+      onBlur={e => { const v = e.target.value.trim(); if (v && v !== name) renameVariant(id, v); }}
+      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.currentTarget.value = name; e.currentTarget.blur(); } }} />
+  );
+}
+
+/** Farbfeld mit Bibliotheks-Verknüpfung */
+function PaintColor({ color, opacity, colorRef, gradient, gradientRef, allowGradient, noConic, onChange }: {
+  color: string; opacity: number; colorRef?: string | null; gradient?: Fill['gradient']; gradientRef?: string | null;
+  allowGradient?: boolean; noConic?: boolean;
+  onChange: (c: PaintPatch) => void;
+}) {
+  const colors = useEditor(s => s.doc.library.colors);
+  const gradients = useEditor(s => s.doc.library.gradients);
+  const asset = colorRef ? colors.find(c => c.id === colorRef) : undefined;
+  const gAsset = gradient && gradientRef ? gradients.find(g => g.id === gradientRef) : undefined;
+  return (
+    <>
+      {gAsset ? (
+        <div className="colorfield linked" title={`Verknüpft mit dem Verlauf „${gAsset.name}“ aus der Bibliothek`}>
+          <span className="swatch"><span style={{ background: gradientCss(gAsset.gradient, opacity) }} /></span>
+          <span className="linked-name">{gAsset.name}</span>
+          <IconButton icon={<Icons.unlink />} title="Verknüpfung lösen (Verlauf frei bearbeiten)" onClick={() => onChange({ gradientRef: null })} />
+        </div>
+      ) : asset ? (
+        <div className="colorfield linked" title={`Verknüpft mit „${asset.name}“ aus der Bibliothek`}>
+          <span className="swatch"><span style={{ background: rgba(asset.color, asset.opacity) }} /></span>
+          <span className="linked-name">{asset.name}</span>
+          <IconButton icon={<Icons.unlink />} title="Verknüpfung lösen (Farbe frei bearbeiten)" onClick={() => onChange({ colorRef: null })} />
+        </div>
+      ) : (
+        <ColorField color={color} opacity={opacity} gradient={gradient} allowGradient={allowGradient} noConic={noConic}
+          onChange={c => onChange(c.colorRef !== undefined || c.gradientRef !== undefined ? c : { ...c, colorRef: null, ...(gradient || c.gradient ? { gradientRef: null } : {}) })} />
+      )}
+      <ColorLibMenu colors={colors} current={asset?.id ?? gAsset?.id} isGradient={!!gradient}
+        onPick={(a: ColorAsset) => onChange({ color: a.color, opacity: a.opacity, colorRef: a.id })}
+        onSave={() => {
+          if (gradient) { const id = addGradient(gradient); onChange({ gradientRef: id }); }
+          else { const id = addColor(color, opacity); onChange({ colorRef: id }); }
+        }} />
+    </>
+  );
+}
+
+function ColorLibMenu({ colors, current, isGradient, onPick, onSave }: {
+  colors: ColorAsset[]; current?: string; isGradient?: boolean; onPick: (a: ColorAsset) => void; onSave: () => void;
+}) {
+  return (
+    <div className="lib-menu">
+      <Menu label={<Icons.library />} align="right" title="Farbe aus der Bibliothek">
+        {close => (
+          <>
+            {colors.map(c => (
+              <button key={c.id} type="button" className={`menu-item color-item${c.id === current ? ' active' : ''}`} onClick={() => { close(); onPick(c); }}>
+                <span className="swatch-dot" style={{ background: rgba(c.color, c.opacity) }} /><span className="grow">{c.name}</span>
+                <span className="asset-meta">{c.color.replace('#', '')}</span>
+              </button>
+            ))}
+            {!colors.length && <div className="menu-hint">Noch keine Farben in der Bibliothek.</div>}
+            {!current && <><div className="menu-sep" />
+              <button type="button" className="menu-item" onClick={() => { close(); onSave(); }}><span>{isGradient ? 'Diesen Verlauf in der Bibliothek speichern' : 'Diese Farbe in der Bibliothek speichern'}</span></button></>}
+          </>
+        )}
+      </Menu>
+    </div>
+  );
+}
+
+function TextStyleRow({ nodes }: { nodes: WNode[] }) {
+  const styles = useEditor(s => s.doc.library.textStyles);
+  const ref = common(nodes, n => n.textStyleRef ?? null);
+  const asset = ref ? styles.find(t => t.id === ref) : undefined;
+  if (!styles.length) return null;
+  return (
+    <div className="row">
+      <select className={`select grow${asset ? ' linked' : ''}`} aria-label="Textstil" value={ref === undefined ? '__mixed' : asset ? asset.id : ''}
+        onChange={e => applyTextStyle(e.target.value || null, nodes.map(n => n.id))}>
+        {ref === undefined && <option value="__mixed" disabled>Gemischte Textstile</option>}
+        <option value="">Kein Textstil</option>
+        {styles.map(t => <option key={t.id} value={t.id}>{t.name} – {t.style.fontSize} px</option>)}
+      </select>
+      {asset && <IconButton icon={<Icons.unlink />} title="Vom Textstil lösen" onClick={() => applyTextStyle(null, nodes.map(n => n.id))} />}
+    </div>
+  );
+}
+
+// ---------- Zustände (Normal / Hover) ----------
+
+function StateSwitch({ nodes }: { nodes: WNode[] }) {
+  const state = useEditor(s => s.interaction);
+  const set = useEditor(s => s.setInteraction);
+  const raw = useEditor(useShallow(s => s.selection.map(id => pageOf(s).nodes[id]).filter(Boolean) as WNode[]));
+  const field = state === 'scrolled' ? 'scrolled' : 'hover';
+  const keys = [...new Set(raw.flatMap(n => Object.keys(n[field] ?? {})))];
+  return (
+    <section className={`section${state !== 'normal' ? ' state-notice' : ''}`}>
+      <div className="state-switch">
+        <span className="lbl">Zustand</span>
+        <Seg value={state} onChange={set} options={[
+          { value: 'normal', icon: <span>Normal</span>, title: 'Normales Aussehen' },
+          { value: 'hover', icon: <span>Hover</span>, title: 'Aussehen beim Überfahren mit der Maus bearbeiten' },
+          { value: 'scrolled', icon: <span>Gescrollt</span>, title: 'Aussehen nach dem Scrollen bearbeiten (z. B. kleinere Kopfzeile)' },
+        ]} />
+      </div>
+      {state === 'hover' && (
+        <div className="bp-notice-head" style={{ marginTop: 8 }}>
+          <Icons.pointer />
+          <span>Änderungen an Farbe, Kontur, Schatten, Deckkraft, Radius und Text gelten nur beim <b>Überfahren mit der Maus</b>. Sichtbar in der Vorschau.</span>
+        </div>
+      )}
+      {state === 'scrolled' && (
+        <div className="bp-notice-head" style={{ marginTop: 8 }}>
+          <Icons.pointer />
+          <span>Änderungen an Größe, Abständen, Farbe, Schrift und Sichtbarkeit gelten erst, <b>wenn die Seite gescrollt wurde</b>. Gilt für alle Bildschirmgrößen. Sichtbar in der Vorschau.</span>
+        </div>
+      )}
+      {state !== 'normal' && keys.length > 0 && (
+        <div className="row">
+          <span className="bp-keys grow">{state === 'hover' ? 'Hover' : 'Gescrollt'}: {keys.map(k => HOVER_NAMES[k] ?? k).join(', ')}</span>
+          <IconButton icon={<Icons.reset />} title={state === 'hover' ? 'Hover-Änderungen entfernen' : 'Änderungen nach dem Scrollen entfernen'}
+            onClick={() => updateNodes(nodes.map(n => n.id), n => { n[field] = null; }, `${field}-reset`)} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------- Prototyp: Links, Hover, Einblenden ----------
+
+function useRawSelected(): WNode[] {
+  return useEditor(useShallow(s => {
+    const p = pageOf(s);
+    return s.selection.map(id => p.nodes[id]).filter(Boolean);
+  }));
+}
+
+function ProtoTab() {
+  const nodes = useRawSelected();
+  if (!nodes.length) {
+    return (
+      <>
+        <NavInsertSection />
+        <FormInsertSection />
+        <EmbedInsertSection />
+        <CodeInsertSection />
+      </>
+    );
+  }
+  const ids = nodes.map(n => n.id);
+  return (
+    <>
+      {nodes.length === 1 && <FormSection node={nodes[0]} />}
+      <LinkSection nodes={nodes} ids={ids} />
+      <HoverSection nodes={nodes} ids={ids} />
+      <ScrollSection nodes={nodes} ids={ids} />
+      <RevealSection nodes={nodes} ids={ids} />
+    </>
+  );
+}
+
+const setShared = (ids: string[], fn: (n: WNode) => void, key: string) =>
+  useEditor.getState().mutate(pg => { ids.forEach(id => { const n = pg.nodes[id]; if (n) fn(n); }); }, { key });
+
+function LinkSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
+  const doc = useEditor(s => s.doc);
+  const page = useEditor(viewPage);
+  const link = common(nodes, n => n.link ?? null);
+  const type = link === undefined ? 'mixed' : link ? link.type : 'none';
+  const set = (l: Link | null) => setShared(ids, n => { n.link = l; }, 'link');
+  const targets = Object.values(page.nodes).filter(n => n.type === 'board' && n.parentId !== null && !ids.includes(n.id));
+  return (
+    <Section title="Link" empty={type === 'none'}>
+      <div className="row">
+        <select className="select grow" aria-label="Link-Art" value={type}
+          onChange={e => {
+            const v = e.target.value;
+            if (v === 'none') set(null);
+            else if (v === 'page') set({ type: 'page', pageId: (doc.pages.find(p => p.id !== useEditor.getState().pageId) ?? doc.pages[0]).id });
+            else if (v === 'anchor') set({ type: 'anchor', nodeId: targets[0]?.id ?? '' });
+            else if (v === 'url') set({ type: 'url', url: '', newTab: true });
+            else if (v === 'email') set({ type: 'email', email: '' });
+          }}>
+          {type === 'mixed' && <option value="mixed" disabled>Gemischt</option>}
+          <option value="none">Kein Link</option>
+          <option value="page">Zu einer Seite</option>
+          <option value="anchor">Zu einem Abschnitt</option>
+          <option value="url">Zu einer Webadresse</option>
+          <option value="email">E-Mail schreiben</option>
+        </select>
+      </div>
+      {link?.type === 'page' && (
+        <div className="row">
+          <select className="select grow" aria-label="Zielseite" value={link.pageId} onChange={e => set({ type: 'page', pageId: e.target.value })}>
+            {doc.pages.map((p, i) => <option key={p.id} value={p.id}>{p.name}{i === 0 ? ' (Startseite)' : ''}</option>)}
+          </select>
+        </div>
+      )}
+      {link?.type === 'anchor' && (
+        <>
+          <div className="row">
+            <select className="select grow" aria-label="Ziel-Abschnitt" value={link.nodeId} onChange={e => set({ type: 'anchor', nodeId: e.target.value })}>
+              {!targets.length && <option value="">Keine Abschnitte vorhanden</option>}
+              {targets.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <p className="proto-hint">Abschnitte sind Boards innerhalb des Webseiten-Boards. Beim Klick wird sanft dorthin gescrollt.</p>
+        </>
+      )}
+      {link?.type === 'url' && (
+        <>
+          <div className="row">
+            <input className="textinput grow" placeholder="https://beispiel.de" aria-label="Webadresse" defaultValue={link.url} key={ids.join()}
+              onBlur={e => set({ ...link, url: e.target.value.trim() })} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+          </div>
+          <label className="check">
+            <input type="checkbox" checked={link.newTab} onChange={e => set({ ...link, newTab: e.target.checked })} />
+            In neuem Tab öffnen
+          </label>
+        </>
+      )}
+      {link?.type === 'email' && (
+        <div className="row">
+          <input className="textinput grow" placeholder="name@beispiel.de" aria-label="E-Mail-Adresse" defaultValue={link.email} key={ids.join()}
+            onBlur={e => set({ type: 'email', email: e.target.value.trim() })} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function HoverSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
+  const state = useEditor(s => s.interaction);
+  const keys = [...new Set(nodes.flatMap(n => Object.keys(n.hover ?? {})))];
+  const dur = common(nodes, n => n.hoverDuration ?? 200);
+  return (
+    <Section title="Hover" empty={!keys.length && state !== 'hover'}
+      actions={keys.length > 0 && <IconButton icon={<Icons.minus />} title="Hover-Effekt entfernen" onClick={() => setShared(ids, n => { n.hover = null; }, 'hover-del')} />}>
+      {keys.length > 0
+        ? <p className="proto-hint">Ändert beim Überfahren: {keys.map(k => HOVER_NAMES[k] ?? k).join(', ')}</p>
+        : <p className="proto-hint">Noch kein Hover-Effekt. Schalte im Reiter „Dokument“ auf <b>Zustand: Hover</b> und ändere z. B. die Farbe.</p>}
+      <div className="row">
+        <button className={`btn grow${state === 'hover' ? ' active' : ''}`}
+          onClick={() => useEditor.getState().setInteraction(state === 'hover' ? 'normal' : 'hover')}>
+          {state === 'hover' ? 'Hover-Bearbeitung beenden' : 'Hover-Zustand bearbeiten'}
+        </button>
+      </div>
+      {keys.length > 0 && (
+        <div className="row">
+          <span className="lbl">Übergang</span>
+          <NumberField title="Dauer des Übergangs" suffix="ms" min={0} max={3000} step={50} precision={0} value={dur}
+            onChange={v => setShared(ids, n => { n.hoverDuration = v; }, 'hover-dur')} />
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// ---------- Beim Scrollen: fixieren + Aussehen nach dem Scrollen ----------
+
+type PinChoice = 'none' | 'sticky' | 'fixed';
+
+/** Position einer Ebene relativ zum Webseiten-Board */
+function absPos(pg: { nodes: Record<string, WNode> }, n: WNode) {
+  let x = 0, y = 0;
+  for (let c: WNode | undefined = n; c && c.parentId; c = pg.nodes[c.parentId]) { x += c.x; y += c.y; }
+  return { x, y };
+}
+
+function ScrollSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
+  const state = useEditor(s => s.interaction);
+  const page = useEditor(pageOf);
+  // Das Webseiten-Board selbst lässt sich nicht fixieren (bei Komponenten ist es die Komponente selbst – die schon)
+  const compPage = useEditor(s => isComponentPage(s.doc, s.pageId));
+  const isBoard = !compPage && nodes.some(n => isPageBoard(page, n.id));
+  const pin = common(nodes, n => n.pin ?? null);
+  const choice: PinChoice | undefined = pin === undefined ? undefined : pin ? pin.mode : 'none';
+  const keys = [...new Set(nodes.flatMap(n => Object.keys(n.scrolled ?? {})))];
+  const at = common(nodes, n => n.scrollAt ?? 80);
+  const dur = common(nodes, n => n.scrollDuration ?? 250);
+  const one = nodes.length === 1 ? nodes[0] : null;
+  const parent = one?.parentId ? page.nodes[one.parentId] : undefined;
+  // Komponente selbst: ob sie im Layout steht, entscheidet die Stelle, an der die Kopie liegt
+  const inFlow = !!one && ((!!parent?.layout && !one.absolute) || (compPage && !one.parentId));
+  const board = pageBoard(page);
+  const inst = one ? instanceRootOf(page, one.id) : null;
+  const instComp = inst ? page.nodes[inst]?.componentId : undefined;
+  // „Schweben“ klappt nicht, wenn ein Eltern-Element gedreht, unscharf oder eingeblendet wird
+  const blocker = one && pin?.mode === 'fixed'
+    ? (() => { for (let c = parent; c && c.parentId; c = c.parentId ? page.nodes[c.parentId] : undefined) if (c.rotation || c.blur || c.reveal) return c; return undefined; })()
+    : undefined;
+
+  const setPin = (v: PinChoice) => setShared(ids, n => {
+    if (v === 'none') { n.pin = null; return; }
+    const { x } = absPos(page, n);
+    const bw = board?.w ?? 1440;
+    n.pin = { mode: v, h: n.pin?.h ?? (x + n.w / 2 > bw / 2 ? 'right' : 'left'), v: n.pin?.v ?? 'top', bottom: n.pin?.bottom ?? 24 };
+  }, 'pin');
+  const patchPin = (p: Partial<NonNullable<WNode['pin']>>) => setShared(ids, n => { if (n.pin) n.pin = { ...n.pin, ...p }; }, 'pin');
+
+  if (isBoard) return null;
+  return (
+    <Section title="Beim Scrollen" empty={choice === 'none' && !keys.length && state !== 'scrolled'}>
+      <div className="row">
+        <select className="select grow" aria-label="Fixieren" value={choice ?? 'mixed'} onChange={e => setPin(e.target.value as PinChoice)}>
+          {choice === undefined && <option value="mixed" disabled>Gemischt</option>}
+          <option value="none">Scrollt mit der Seite</option>
+          <option value="sticky" disabled={!inFlow && choice !== 'sticky'}>Oben fixieren – nimmt Platz ein</option>
+          <option value="fixed">An der Stelle fixieren – schwebt über der Seite</option>
+        </select>
+      </div>
+      {choice === 'none' && <p className="proto-hint">Z. B. für eine Kopfzeile, die oben stehen bleibt, oder einen Störer, der beim Scrollen an seiner Stelle bleibt.</p>}
+      {choice === 'sticky' && (
+        <p className="proto-hint">
+          Bleibt oben am Fensterrand stehen, sobald es dort ankommt. Der Inhalt darunter rückt nicht nach.
+          {parent && board && parent.id !== board.id && <> Achtung: Klappt nur innerhalb von „{parent.name}“ – für die ganze Seite die Ebene direkt ins Webseiten-Board legen.</>}
+        </p>
+      )}
+      {!inFlow && one && choice === 'none' && <p className="proto-hint">„Oben fixieren – nimmt Platz ein“ geht nur bei Ebenen in einem Layout.</p>}
+      {pin?.mode === 'fixed' && (
+        <>
+          <div className="row">
+            <span className="lbl">Abstand von</span>
+            <Seg value={pin.h} onChange={h => patchPin({ h })} options={[
+              { value: 'left', icon: <span>Links</span>, title: 'Abstand vom linken Fensterrand bleibt gleich' },
+              { value: 'right', icon: <span>Rechts</span>, title: 'Abstand vom rechten Fensterrand bleibt gleich' },
+            ]} />
+            <Seg value={pin.v} onChange={v => patchPin({ v })} options={[
+              { value: 'top', icon: <span>Oben</span>, title: 'Abstand vom oberen Fensterrand = Position im Board' },
+              { value: 'bottom', icon: <span>Unten</span>, title: 'Am unteren Fensterrand' },
+            ]} />
+          </div>
+          {pin.v === 'bottom' && (
+            <div className="row">
+              <span className="lbl">Abstand unten</span>
+              <NumberField title="Abstand vom unteren Fensterrand" suffix="px" min={0} max={2000} step={1} precision={0} value={pin.bottom}
+                onChange={b => patchPin({ bottom: b })} />
+            </div>
+          )}
+          <p className="proto-hint">Bleibt beim Scrollen genau dort im Fenster stehen. Die Seite läuft dahinter durch.</p>
+          {blocker && <p className="proto-hint warn">„{blocker.name}“ ist gedreht, unscharf oder wird eingeblendet – dann bleibt diese Ebene nicht stehen. Lege sie besser direkt ins Webseiten-Board.</p>}
+        </>
+      )}
+      {instComp && (
+        <div className="row">
+          <p className="proto-hint grow">Teil einer Komponente: Was du hier einstellst, gilt nur auf dieser Seite. Für alle Seiten in der Komponente einstellen.</p>
+          <button type="button" className="btn small" onClick={() => showMain(instComp)}>Komponente öffnen</button>
+        </div>
+      )}
+
+      <div className="field-label" style={{ marginTop: 10 }}>Aussehen nach dem Scrollen</div>
+      {keys.length > 0
+        ? <p className="proto-hint">Ändert nach dem Scrollen: {keys.map(k => HOVER_NAMES[k] ?? k).join(', ')}</p>
+        : <p className="proto-hint">Z. B. eine kleinere Kopfzeile mit kleinerem Logo. Auch Kinder-Ebenen (Logo, Text) können sich ändern oder ein- und ausblenden.</p>}
+      <div className="row">
+        <button className={`btn grow${state === 'scrolled' ? ' active' : ''}`}
+          onClick={() => useEditor.getState().setInteraction(state === 'scrolled' ? 'normal' : 'scrolled')}>
+          {state === 'scrolled' ? 'Bearbeitung beenden' : 'Aussehen nach dem Scrollen bearbeiten'}
+        </button>
+      </div>
+      {(keys.length > 0 || state === 'scrolled') && (
+        <>
+          <div className="row">
+            <span className="lbl">Umschalten ab</span>
+            <NumberField title="Nach wie vielen Pixeln Scrollen umgeschaltet wird" suffix="px" min={1} max={2000} step={10} precision={0} value={at}
+              onChange={v => setShared(ids, n => { n.scrollAt = v; }, 'scroll-at')} />
+          </div>
+          <div className="row">
+            <span className="lbl">Übergang</span>
+            <NumberField title="Dauer des Übergangs" suffix="ms" min={0} max={3000} step={50} precision={0} value={dur}
+              onChange={v => setShared(ids, n => { n.scrollDuration = v; }, 'scroll-dur')} />
+          </div>
+        </>
+      )}
+    </Section>
+  );
+}
+
+const REVEALS: [RevealType, string][] = [['fade', 'Einblenden'], ['up', 'Von unten hereingleiten'], ['left', 'Von links hereingleiten'], ['zoom', 'Heranzoomen']];
+
+function RevealSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
+  const reveal = common(nodes, n => n.reveal ?? null);
+  const type = reveal === undefined ? 'mixed' : reveal ? reveal.type : 'none';
+  const set = (fn: (n: WNode) => void, key: string) => setShared(ids, fn, key);
+  return (
+    <Section title="Beim Scrollen einblenden" empty={type === 'none'}>
+      <div className="row">
+        <select className="select grow" aria-label="Animation" value={type}
+          onChange={e => {
+            const v = e.target.value as RevealType | 'none';
+            set(n => { n.reveal = v === 'none' ? null : { type: v, duration: n.reveal?.duration ?? 600, delay: n.reveal?.delay ?? 0 }; }, 'reveal');
+          }}>
+          {type === 'mixed' && <option value="mixed" disabled>Gemischt</option>}
+          <option value="none">Keine Animation</option>
+          {REVEALS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </div>
+      {reveal && (
+        <div className="row">
+          <NumberField label="Dauer" title="Dauer der Animation" suffix="ms" min={0} max={5000} step={50} precision={0} value={common(nodes, n => n.reveal?.duration)}
+            onChange={v => set(n => { if (n.reveal) n.reveal.duration = v; }, 'reveal-d')} />
+          <NumberField label="Verz." title="Verzögerung (z. B. für nacheinander erscheinende Elemente)" suffix="ms" min={0} max={5000} step={50} precision={0}
+            value={common(nodes, n => n.reveal?.delay)} onChange={v => set(n => { if (n.reveal) n.reveal.delay = v; }, 'reveal-dl')} />
+        </div>
+      )}
+      {reveal && <p className="proto-hint">Sichtbar in der Vorschau, wenn die Ebene beim Scrollen ins Bild kommt.</p>}
+    </Section>
+  );
+}
