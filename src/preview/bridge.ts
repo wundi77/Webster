@@ -7,6 +7,9 @@ export type PreviewMsg = { type: 'hello' } | { type: 'bye' } | { type: 'editor-r
 /** Im Editor: Dokument an offene Vorschau-Tabs senden */
 export function startPreviewBridge(getDoc: () => WDocument, subscribe: (fn: () => void) => () => void) {
   if (typeof BroadcastChannel === 'undefined') return;
+  // Im Vorschau-Tab wird der Editor-Speicher mitgeladen (über gemeinsame Module). Dort darf er nicht senden,
+  // sonst antwortet er mit seinem leeren Startdokument und überschreibt das echte aus dem Editor.
+  if (location.hash.startsWith('#preview')) return;
   const ch = new BroadcastChannel(CHANNEL);
   let open = false;
   let timer: number | undefined;
