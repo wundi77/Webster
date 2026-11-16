@@ -10,6 +10,8 @@ import {
 } from '../model/commands';
 import { writeProps } from '../model/resolve';
 import { BREAKPOINTS } from '../model/factory';
+import { Icons } from '../ui/icons';
+import { openPreview } from '../preview/bridge';
 import { fitAll, zoomAt } from '../model/viewport';
 import { NodeView } from './NodeView';
 import { RulersAndGuides } from './Rulers';
@@ -716,9 +718,9 @@ function Overlay({ page, zoom, pan, draft, draftLine, marquee, guides, ghost, dr
         const n = page.nodes[id];
         if (!n || n.type !== 'board' || !n.visible) return null;
         const r = sr(absRect(page, id));
-        return (
+        const title = (
           <div key={id} className={`board-title${selection.includes(id) ? ' sel' : ''}`} data-board-title={id}
-            style={{ left: r.left, top: r.top - 19, maxWidth: Math.max(r.width, n.site ? 170 : 40) }}
+            style={{ left: r.left, top: r.top - 19, maxWidth: Math.max(n.site && r.width > 150 ? r.width - 110 : r.width, n.site ? 170 : 40) }}
             title="Doppelklick zum Umbenennen">
             {renaming === id ? (
               <input className="board-title-input" autoFocus defaultValue={n.name} aria-label="Board umbenennen"
@@ -734,6 +736,23 @@ function Overlay({ page, zoom, pan, draft, draftLine, marquee, guides, ghost, dr
             {n.site && <span className="bp-tag">{bpInfo.label} · {fmt(absRect(page, id).w)} px</span>}
           </div>
         );
+        // Webseiten-Board: Leiste mit Bildschirmgröße und Vorschau (wie eine Fensterleiste)
+        const bar = n.site && renaming !== id && r.width > 150 && (
+          <div key={`${id}-bar`} className="board-bar" style={{ left: r.left + r.width, top: r.top - 22 }}
+            onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+            {BREAKPOINTS.map(b => {
+              const I = Icons[b.id];
+              return (
+                <button key={b.id} type="button" className={`board-bar-btn${bp === b.id ? ' on' : ''}`} aria-pressed={bp === b.id}
+                  title={`${b.label} – ${b.hint}`} onClick={() => useEditor.getState().setBreakpoint(b.id)}><I /></button>
+              );
+            })}
+            <span className="board-bar-sep" />
+            <button type="button" className="board-bar-btn" title="Vorschau dieser Seite öffnen" aria-label="Vorschau"
+              onClick={() => openPreview(page.id)}><Icons.play /></button>
+          </div>
+        );
+        return bar ? [title, bar] : title;
       })}
       {hoverNode && (
         <div className="hover-box" style={{ ...sr(absRect(page, hoverNode.id)), transform: hoverNode.rotation ? `rotate(${hoverNode.rotation}deg)` : undefined }} />

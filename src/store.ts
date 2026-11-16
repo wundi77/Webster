@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { produce } from 'immer';
 import type { Breakpoint, InteractionState, Page, Rect, WDocument } from './model/types';
-import { createDocument, migrateDocument } from './model/factory';
+import { createDocument, migrateDocument, setBaseFontSize } from './model/factory';
 import { resolvePage } from './model/resolve';
 import { setMeasured } from './model/geometry';
 import { saveBackup, type BackupMeta } from './persist';
@@ -212,3 +212,6 @@ startPreviewBridge(() => useEditor.getState().doc, fn => useEditor.subscribe((s,
 
 // Nur in der Entwicklung: Zugriff für automatische Tests
 if (import.meta.env.DEV) (window as unknown as { __webster: typeof useEditor }).__webster = useEditor;
+
+// Grundschrift für neue Texte aktuell halten
+useEditor.subscribe(s => setBaseFontSize(s.doc.site?.baseFont));

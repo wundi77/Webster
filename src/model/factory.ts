@@ -27,8 +27,12 @@ export const makeShadow = (): Shadow => ({
   id: uid(), kind: 'drop', x: 0, y: 4, blur: 8, spread: 0, color: '#000000', opacity: 0.2, visible: true,
 });
 
+/** Grundschrift der Webseite (wird vom Editor aus den Webseiten-Einstellungen gesetzt) */
+let baseFontSize = 16;
+export const setBaseFontSize = (v: number | undefined) => { baseFontSize = v ?? 16; };
+
 export const defaultTextStyle = (): TextStyle => ({
-  fontFamily: 'Inter', fontSize: 16, fontWeight: 400, lineHeight: 1.4, letterSpacing: 0,
+  fontFamily: 'Inter', fontSize: baseFontSize, fontWeight: 400, lineHeight: 1.4, letterSpacing: 0,
   textAlign: 'left', italic: false, decoration: 'none', transform: 'none',
 });
 

@@ -584,7 +584,7 @@ ${BASE_CSS}
 ${parts.nav ? NAV_CSS : ''}
 ${parts.form ? FORM_CSS : ''}
 ${parts.embed ? EMBED_CSS : ''}
-body{background:${parts.background}}
+body{background:${parts.background}${doc.site?.baseFont ? `;font-size:${doc.site.baseFont}px` : ''}}
 ${parts.css}
 ${doc.site?.css ?? ''}
 </style>

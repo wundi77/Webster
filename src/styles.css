@@ -890,3 +890,29 @@ svg [stroke="currentColor"] { stroke: var(--wpaint, currentColor); }
 .sidebar-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: transparent; transition: background .15s; }
 .sidebar-resizer:hover::after, .sidebar-resizer:focus-visible::after, .sidebar-resizer.active::after { background: var(--accent); }
 body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
+
+/* ---------- Beschriftete Zeilen (Position und Größe) ---------- */
+.size-mode { flex: none; width: 104px; }
+/* Knöpfe mit Wörtern statt Symbolen */
+.seg:has(.ibtn > span) { flex: 0 1 auto; min-width: 0; }
+.seg .ibtn:has(> span) { width: auto; min-width: 26px; padding: 0 6px; font-size: 11px; white-space: nowrap; }
+.sep-word { flex: none; color: var(--text-3); font-size: 11px; }
+.quad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 2px 0 6px; }
+.quad > label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.quad > label small { text-align: center; font-size: 10px; color: var(--text-3); }
+.quad .number-field, .quad input { width: 100%; min-width: 0; }
+.stepper { display: flex; gap: 2px; flex: none; }
+
+/* ---------- Leiste über dem Webseiten-Board ---------- */
+.board-bar {
+  position: absolute; transform: translateX(-100%); display: flex; align-items: center; gap: 1px; height: 20px;
+  padding: 0 2px; background: var(--bg-1); border: 1px solid var(--border); border-radius: 5px; pointer-events: auto;
+}
+.board-bar-btn {
+  display: grid; place-items: center; width: 22px; height: 16px; padding: 0; border: 0; border-radius: 3px;
+  background: none; color: var(--text-2); cursor: pointer;
+}
+.board-bar-btn svg { width: 12px; height: 12px; }
+.board-bar-btn:hover { background: var(--bg-2); color: var(--text); }
+.board-bar-btn.on { background: var(--accent); color: #fff; }
+.board-bar-sep { width: 1px; height: 12px; margin: 0 2px; background: var(--border); }

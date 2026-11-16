@@ -63,6 +63,12 @@ export function nodeCss(node: WNode, parent: Layout | null = null): Record<strin
       else c['flex-shrink'] = '0';
       if (crossFill) c['align-self'] = 'stretch';
       else if (node.alignSelf !== 'auto') c['align-self'] = flexAlign(node.alignSelf);
+    } else if (parent.masonry) {
+      // Kachel im Mauerwerk: volle Spaltenbreite, nicht über zwei Spalten zerteilen
+      c['width'] = '100%';
+      c['break-inside'] = 'avoid';
+      c['margin-bottom'] = px(parent.rowGap);
+      c['display'] = c['display'] ?? 'block';
     } else {
       if (sz.h === 'fill') c['justify-self'] = 'stretch';
       if (sz.v === 'fill') c['align-self'] = 'stretch';
@@ -114,8 +120,16 @@ export function nodeCss(node: WNode, parent: Layout | null = null): Record<strin
       c['column-gap'] = px(row ? L.gap : L.rowGap);
       c['justify-content'] = flexAlign(L.justify);
       c['align-items'] = flexAlign(L.align);
+    } else if (L.masonry) {
+      // Mauerwerk: Spalten wie in einer Zeitung, die Kacheln laufen von oben nach unten
+      c['display'] = 'block';
+      if (L.colMin) c['column-width'] = px(L.colMin);
+      else c['column-count'] = String(Math.max(1, L.columns.length));
+      c['column-gap'] = px(L.gap);
     } else {
-      c['grid-template-columns'] = L.columns.length ? L.columns.map(trackCss).join(' ') : 'none';
+      c['grid-template-columns'] = L.colMin
+        ? `repeat(auto-fill, minmax(min(${px(L.colMin)}, 100%), 1fr))`
+        : L.columns.length ? L.columns.map(trackCss).join(' ') : 'none';
       if (L.rows.length) c['grid-template-rows'] = L.rows.map(trackCss).join(' ');
       c['column-gap'] = px(L.gap);
       c['row-gap'] = px(L.rowGap);

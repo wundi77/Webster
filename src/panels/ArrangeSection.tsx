@@ -26,7 +26,7 @@ function stackedAt(raw: WNode, bp: Breakpoint): boolean {
   const D = raw.layout, L = resolveNode(raw, bp).layout;
   if (!D || !L) return false;
   if (D.type === 'flex' && D.direction === 'row') return L.type === 'flex' && L.direction === 'column';
-  if (D.type === 'grid') return L.type === 'grid' && colsOf(L) === 1;
+  if (D.type === 'grid') return L.type === 'grid' && !L.colMin && colsOf(L) === 1;
   return false;
 }
 
@@ -61,7 +61,7 @@ function setStack(pg: Page, n: WNode, bp: Breakpoint, stack: boolean) {
   if (!D || bp === 'desktop') return;
   applyEdit(n, bp, e => {
     if (!e.layout) return;
-    if (D.type === 'grid') e.layout = { ...e.layout, type: 'grid', columns: stack ? fr(1) : D.columns, rows: D.rows };
+    if (D.type === 'grid') e.layout = { ...e.layout, type: 'grid', columns: stack ? fr(1) : D.columns, rows: D.rows, colMin: stack ? null : D.colMin };
     else e.layout = { ...e.layout, type: 'flex', direction: stack ? 'column' : D.direction, wrap: stack ? false : D.wrap };
   });
   for (const k of flowKids(pg, n)) applyEdit(k, bp, e => { e.sizingH = stack ? 'fill' : k.sizingH; });
@@ -101,10 +101,10 @@ const PRESETS: Preset[] = [
     id: 'tiles', label: 'Kacheln', hint: '3 Spalten, Tablet 2, Handy 1 – z. B. für Karten',
     icon: <Mini kind="grid" n={6} cols={3} />,
     apply: (pg, n) => {
-      setArrangement(pg, n, 'grid'); n.layout!.type = 'grid'; n.layout!.columns = fr(3); n.layout!.rows = [];
+      setArrangement(pg, n, 'grid'); n.layout!.type = 'grid'; n.layout!.columns = fr(3); n.layout!.rows = []; n.layout!.colMin = null; n.layout!.masonry = false;
       n.layout!.gap = 24; n.layout!.rowGap = 24; kidsFill(pg, n);
-      applyEdit(n, 'tablet', e => { if (e.layout) e.layout = { ...e.layout, type: 'grid', columns: fr(2), rows: [] }; });
-      applyEdit(n, 'mobile', e => { if (e.layout) e.layout = { ...e.layout, type: 'grid', columns: fr(1), rows: [] }; });
+      applyEdit(n, 'tablet', e => { if (e.layout) e.layout = { ...e.layout, type: 'grid', columns: fr(2), rows: [], colMin: null }; });
+      applyEdit(n, 'mobile', e => { if (e.layout) e.layout = { ...e.layout, type: 'grid', columns: fr(1), rows: [], colMin: null }; });
       for (const k of flowKids(pg, n)) for (const bp of ['tablet', 'mobile'] as const) applyEdit(k, bp, e => { e.sizingH = 'fill'; });
     },
   },
@@ -194,7 +194,7 @@ export function ArrangeSection({ node, advanced }: { node: WNode; advanced: Reac
         </>
       )}
 
-      {raw.layout && (desk === 'row' || desk === 'grid') && (
+      {raw.layout && !raw.layout.colMin && (desk === 'row' || desk === 'grid') && (
         <>
           {(['tablet', 'mobile'] as Breakpoint[]).map(b => {
             const st = stackedAt(raw, b);
@@ -230,6 +230,7 @@ function explain(raw: WNode, count: number, isRoot: boolean): string {
   const later = t ? ' Ab Tablet rutschen sie untereinander.' : m ? ' Auf dem Handy rutschen sie untereinander.' : '';
   if (a === 'row') return `Die Elemente stehen nebeneinander.${later}`;
   if (a === 'grid') {
+    if (raw.layout?.colMin) return `Kacheln mindestens ${raw.layout.colMin} px breit – es stehen so viele nebeneinander, wie ins Fenster passen.`;
     const c = (bp: Breakpoint) => colsOf(resolveNode(raw, bp).layout!);
     return `Kacheln in ${c('desktop')} Spalten, auf dem Tablet ${c('tablet')}, auf dem Handy ${c('mobile')}.`;
   }
@@ -252,7 +253,9 @@ function Preview({ raw, page }: { raw: WNode; page: Page }) {
         if (!L) {
           inner = kids.map(k => <i key={k.id} style={{ position: 'absolute', left: k.x * scale, top: Math.min(h - 6, k.y * scale), width: Math.max(3, k.w * scale), height: Math.max(3, Math.min(h, k.h * scale)) }} />);
         } else if (L.type === 'grid') {
-          inner = <div style={{ display: 'grid', gridTemplateColumns: `repeat(${colsOf(L)}, 1fr)`, gap: 2, width: '100%' }}>{kids.map(k => <i key={k.id} style={{ height: 8 }} />)}</div>;
+          const pad = L.padding[1] + L.padding[3];
+          const cols = L.colMin ? Math.max(1, Math.floor((n.w - pad + L.gap) / (L.colMin + L.gap))) : colsOf(L);
+          inner = <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 2, width: '100%' }}>{kids.map(k => <i key={k.id} style={{ height: 8 }} />)}</div>;
         } else {
           const row = L.direction === 'row';
           inner = (

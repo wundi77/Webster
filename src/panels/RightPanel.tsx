@@ -182,11 +182,17 @@ function SizingSeg({ value, onChange, fill, auto, axis }: {
   return <Seg value={value} options={opts} onChange={onChange} />;
 }
 
+type PosChoice = 'flow' | 'free' | 'fixed' | 'sticky';
+
 function MeasuresSection({ nodes, parents, upd }: { nodes: WNode[]; parents: (WNode | undefined)[]; upd: Upd }) {
   const measured = useMeasured(nodes.map(n => n.id));
+  const page = useEditor(pageOf);
+  const compPage = useEditor(s => isComponentPage(s.doc, s.pageId));
   const m = (i: number) => measured[i] ?? { x: nodes[i].x, y: nodes[i].y, w: nodes[i].w, h: nodes[i].h };
   const vals = nodes.map((_, i) => m(i));
-  const flow = nodes.map((n, i) => !!parents[i]?.layout && !n.absolute);
+  const inLayout = nodes.map((_, i) => !!parents[i]?.layout);
+  const allInLayout = inLayout.every(Boolean);
+  const flow = nodes.map((n, i) => inLayout[i] && !n.absolute);
   const anyFlow = flow.some(Boolean);
   const canFill = flow.every(Boolean);
   const canAuto = nodes.every(n => n.type === 'text' || (n.type === 'board' && !!n.layout));
@@ -194,57 +200,129 @@ function MeasuresSection({ nodes, parents, upd }: { nodes: WNode[]; parents: (WN
   const individual = showRadius && nodes[0].radii !== null;
   const radii = nodes[0].radii;
   const cornerTitles = ['oben links', 'oben rechts', 'unten rechts', 'unten links'];
+  const ids = nodes.map(n => n.id);
+  // Das Webseiten-Board und oberste Boards haben keine Position auf einer Seite
+  const noPos = nodes.some(n => !n.parentId || (!compPage && isPageBoard(page, n.id)));
+  const pos = common(nodes, (n): PosChoice => n.pin?.mode === 'fixed' ? 'fixed' : n.pin?.mode === 'sticky' ? 'sticky' : (n.absolute || !parents[nodes.indexOf(n)]?.layout) ? 'free' : 'flow');
+  const hasLimits = nodes.some(n => n.minW !== null || n.maxW !== null || n.minH !== null || n.maxH !== null);
+  const [limits, setLimits] = useState(false);
 
   const setSizing = (axis: 'h' | 'v', v: Sizing) => {
     upd(n => {
       const i = nodes.findIndex(x => x.id === n.id);
-      if (axis === 'h') { n.sizingH = v; if (v === 'fixed' && i >= 0) n.w = Math.round(m(i).w); }
+      if (axis === 'h') { n.sizingH = v; if (v === 'fixed' && i >= 0) n.w = Math.round(m(i).w); if (v === 'fill' && n.maxW === n.w) n.maxW = null; }
       else { n.sizingV = v; if (v === 'fixed' && i >= 0) n.h = Math.round(m(i).h); }
     }, 'sizing-' + axis);
   };
+  const setPos = (v: PosChoice) => {
+    if (v === 'flow' || v === 'sticky') upd(n => { n.absolute = false; }, 'absolute');
+    if (v === 'free' && allInLayout) upd(n => { n.absolute = true; }, 'absolute');
+    setShared(ids, n => {
+      if (v === 'flow' || v === 'free') { n.pin = null; return; }
+      const { x } = absPos(page, n);
+      const bw = pageBoard(page)?.w ?? 1440;
+      n.pin = { mode: v, h: n.pin?.h ?? (x + n.w / 2 > bw / 2 ? 'right' : 'left'), v: n.pin?.v ?? 'top', bottom: n.pin?.bottom ?? 24 };
+    }, 'pin');
+  };
+  const sizeRow = (axis: 'h' | 'v') => {
+    const word = axis === 'h' ? 'Breite' : 'Höhe';
+    const val = commonVal(vals.map(v => (axis === 'h' ? v.w : v.h)));
+    const mode = common(nodes, n => (axis === 'h' ? n.sizingH : n.sizingV));
+    return (
+      <div className="row">
+        <span className="lbl">{word}</span>
+        <NumberField title={`${word} in px`} value={val} min={1}
+          onChange={v => upd(n => { if (axis === 'h') { n.w = v; n.sizingH = 'fixed'; } else { n.h = v; n.sizingV = 'fixed'; } }, axis === 'h' ? 'w' : 'h')} />
+        {(canFill || canAuto) && (
+          <select className="select size-mode" aria-label={`${word}: Verhalten`} value={mode ?? ''} onChange={e => setSizing(axis, e.target.value as Sizing)}>
+            {mode === undefined && <option value="" disabled>Gemischt</option>}
+            <option value="fixed">Fest</option>
+            {(canFill || mode === 'fill') && <option value="fill" title="Füllt den freien Platz">Füllt aus</option>}
+            {(canAuto || mode === 'auto') && <option value="auto">Passt sich an</option>}
+          </select>
+        )}
+      </div>
+    );
+  };
+  const mm = (k: 'minW' | 'maxW' | 'minH' | 'maxH', title: string) => (
+    <NumberField title={`${title} (leer = keine Grenze)`} min={0} placeholder="–" suffix="px"
+      value={common(nodes, n => n[k]) ?? undefined}
+      onChange={v => upd(n => { n[k] = v; }, k)} onClear={() => upd(n => { n[k] = null; }, k)} />
+  );
 
   return (
-    <Section title="Maße">
-      <div className="row">
-        <NumberField label="B" title="Breite" value={commonVal(vals.map(v => v.w))} min={1}
-          onChange={v => upd(n => { n.w = v; n.sizingH = 'fixed'; }, 'w')} />
-        <NumberField label="H" title="Höhe" value={commonVal(vals.map(v => v.h))} min={1}
-          onChange={v => upd(n => { n.h = v; n.sizingV = 'fixed'; }, 'h')} />
-      </div>
-      {(canFill || canAuto) && (
-        <div className="row sizing-row">
-          <SizingSeg axis="h" value={common(nodes, n => n.sizingH)} fill={canFill} auto={canAuto} onChange={v => setSizing('h', v)} />
-          <SizingSeg axis="v" value={common(nodes, n => n.sizingV)} fill={canFill} auto={canAuto} onChange={v => setSizing('v', v)} />
+    <Section title="Position und Größe">
+      {!noPos && (
+        <div className="row">
+          <span className="lbl">Position</span>
+          <select className="select grow" aria-label="Position" value={pos ?? ''} onChange={e => setPos(e.target.value as PosChoice)}>
+            {pos === undefined && <option value="" disabled>Gemischt</option>}
+            {allInLayout && <option value="flow">Im Layout</option>}
+            <option value="free">Frei</option>
+            <option value="fixed">Bleibt im Fenster stehen</option>
+            <option value="sticky" disabled={!allInLayout}>Bleibt oben kleben</option>
+          </select>
         </div>
       )}
-      <div className="row">
-        <NumberField label="X" title={anyFlow ? 'Position wird vom Layout bestimmt' : 'Position X (relativ zum Board)'} disabled={anyFlow}
-          value={commonVal(vals.map(v => v.x))} onChange={v => upd(n => { n.x = v; }, 'x')} />
-        <NumberField label="Y" title={anyFlow ? 'Position wird vom Layout bestimmt' : 'Position Y (relativ zum Board)'} disabled={anyFlow}
-          value={commonVal(vals.map(v => v.y))} onChange={v => upd(n => { n.y = v; }, 'y')} />
-      </div>
-      <div className="row">
-        <NumberField label={<Icons.rotate />} title="Drehung" suffix="°" value={common(nodes, n => n.rotation)}
-          onChange={v => upd(n => { n.rotation = ((v % 360) + 360) % 360; }, 'rot')} />
-        {showRadius ? (
-          <>
-            <NumberField label={<Icons.radius />} title="Eckenradius" min={0}
-              value={individual ? undefined : common(nodes, n => n.radius)}
-              onChange={v => upd(n => { n.radius = v; n.radii = null; }, 'radius')} />
-            <IconButton icon={<Icons.corners />} title="Ecken einzeln einstellen" active={individual}
-              onClick={() => upd(n => { n.radii = n.radii ? null : [n.radius, n.radius, n.radius, n.radius]; }, 'radii-toggle')} />
-          </>
-        ) : <div className="grow" />}
-      </div>
-      {individual && radii && [[0, 1], [3, 2]].map(pair => (
-        <div className="row" key={pair[0]}>
-          {pair.map(i => (
-            <NumberField key={i} title={`Radius ${cornerTitles[i]}`} min={0} value={common(nodes, n => n.radii?.[i])}
-              label={<Icons.radius style={{ transform: `rotate(${i * 90}deg)` }} />}
-              onChange={v => upd(n => { if (n.radii) n.radii[i] = v; }, 'radii' + i)} />
-          ))}
+      {!noPos && pos !== 'flow' && pos !== 'sticky' && (
+        <div className="row">
+          <span className="lbl">Lage</span>
+          <NumberField label="X" title={anyFlow ? 'Position wird vom Layout bestimmt' : 'Abstand vom linken Rand des Boards'} disabled={anyFlow}
+            value={commonVal(vals.map(v => v.x))} onChange={v => upd(n => { n.x = v; }, 'x')} />
+          <NumberField label="Y" title={anyFlow ? 'Position wird vom Layout bestimmt' : 'Abstand vom oberen Rand des Boards'} disabled={anyFlow}
+            value={commonVal(vals.map(v => v.y))} onChange={v => upd(n => { n.y = v; }, 'y')} />
         </div>
-      ))}
+      )}
+      {pos === 'fixed' && <p className="hint">Bleibt beim Scrollen an dieser Stelle im Fenster. Feineinstellung im Reiter „Elemente“ unter „Beim Scrollen“.</p>}
+      {pos === 'sticky' && <p className="hint">Läuft mit, bis es oben am Fensterrand ankommt, und bleibt dort kleben.</p>}
+      {sizeRow('h')}
+      {sizeRow('v')}
+      {hasLimits || limits ? (
+        <>
+          <div className="row">
+            <span className="lbl">Breite</span>{mm('minW', 'Mindestbreite')}<span className="sep-word">bis</span>{mm('maxW', 'Höchstbreite')}
+          </div>
+          <div className="row">
+            <span className="lbl">Höhe</span>{mm('minH', 'Mindesthöhe')}<span className="sep-word">bis</span>{mm('maxH', 'Höchsthöhe')}
+          </div>
+          <p className="hint">Grenzen: so klein bzw. so groß wird das Element höchstens – z. B. „Breite bis 1400 px“ bei einem Inhalt, der den Platz füllt.</p>
+        </>
+      ) : (
+        <div className="row"><span className="lbl">Grenzen</span>
+          <button type="button" className="btn small" onClick={() => setLimits(true)}><Icons.plus /> Mindest-/Höchstmaße</button></div>
+      )}
+      <div className="row">
+        <span className="lbl">Drehung</span>
+        <NumberField title="Drehung" suffix="°" value={common(nodes, n => n.rotation)}
+          onChange={v => upd(n => { n.rotation = ((v % 360) + 360) % 360; }, 'rot')} />
+        <div className="grow" />
+      </div>
+      {showRadius && (
+        <div className="row">
+          <span className="lbl">Ecken</span>
+          <NumberField title="Eckenradius in px" min={0}
+            value={individual ? undefined : common(nodes, n => n.radius)} placeholder={individual ? 'Einzeln' : undefined}
+            onChange={v => upd(n => { n.radius = v; n.radii = null; }, 'radius')} />
+          <Seg value={individual ? 'each' : 'all'} onChange={v => upd(n => { n.radii = v === 'each' ? [n.radius, n.radius, n.radius, n.radius] : null; }, 'radii-toggle')} options={[
+            { value: 'all', icon: <span>Alle</span>, title: 'Alle Ecken gleich' },
+            { value: 'each', icon: <span>Einzeln</span>, title: 'Jede Ecke einzeln' },
+          ]} />
+        </div>
+      )}
+      {individual && radii && (
+        <div className="row">
+          <span className="lbl" />
+          <div className="quad">
+            {[0, 1, 2, 3].map(i => (
+              <label key={i}>
+                <NumberField title={`Radius ${cornerTitles[i]}`} min={0} value={common(nodes, n => n.radii?.[i])}
+                  onChange={v => upd(n => { if (n.radii) n.radii[i] = v; }, 'radii' + i)} />
+                <small>{['o. l.', 'o. r.', 'u. r.', 'u. l.'][i]}</small>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
     </Section>
   );
 }
@@ -264,18 +342,22 @@ const alignOpts = (row: boolean): { value: AlignItems; icon: ReactNode; title: s
   ];
 };
 
+const fr = (n: number): Track[] => Array.from({ length: Math.max(1, n) }, () => ({ unit: 'fr' as const, value: 1 }));
+const uniform = (t: Track[]) => t.every(x => x.unit === 'fr' && x.value === t[0]?.value);
+
 function LayoutSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
   const L = nodes.length === 1 ? nodes[0].layout : common(nodes, n => n.layout);
   const any = nodes.some(n => n.layout);
   const [indivPad, setIndivPad] = useState(false);
+  const [ownCols, setOwnCols] = useState(false);
   const setL = <K extends keyof Layout>(k: K, v: Layout[K]) => upd(n => { if (n.layout) n.layout[k] = v; }, 'layout-' + k);
   const add = (type: 'flex' | 'grid') => nodes.forEach(n => addLayout(n.id, type));
 
   if (!any) {
     return (
       <Section title="Layout" empty actions={<>
-        <IconButton icon={<Icons.flexRow />} title={`Flex-Layout hinzufügen (${SHIFT}A) – Elemente automatisch in Reihe oder Spalte anordnen`} onClick={() => add('flex')} />
-        <IconButton icon={<Icons.grid />} title="Grid-Layout hinzufügen – Elemente in Spalten und Zeilen anordnen" onClick={() => add('grid')} />
+        <IconButton icon={<Icons.flexRow />} title={`Stapel hinzufügen (${SHIFT}A) – Elemente automatisch neben- oder untereinander`} onClick={() => add('flex')} />
+        <IconButton icon={<Icons.grid />} title="Raster hinzufügen – Elemente in Spalten und Zeilen" onClick={() => add('grid')} />
       </>} />
     );
   }
@@ -283,89 +365,152 @@ function LayoutSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
 
   const row = L.type === 'flex' && L.direction === 'row';
   const pad = L.padding;
-  const padSame = pad[0] === pad[2] && pad[1] === pad[3];
+  const padSame = pad.every(v => v === pad[0]);
   const showIndiv = indivPad || !padSame;
+  const auto = L.type === 'grid' && !!L.colMin;
+  const custom = L.type === 'grid' && !auto && (ownCols || !uniform(L.columns));
+  const yes = (v: boolean, set: (b: boolean) => void, t: string) => (
+    <Seg value={v ? 'yes' : 'no'} onChange={x => set(x === 'yes')} options={[
+      { value: 'yes', icon: <span>Ja</span>, title: t }, { value: 'no', icon: <span>Nein</span>, title: t },
+    ]} />
+  );
+  const words = (opts: [AlignItems, string][]) => opts.map(([value, w]) => ({ value, icon: <span>{w}</span>, title: w }));
 
   return (
-    <Section title={L.type === 'flex' ? 'Flex-Layout' : 'Grid-Layout'}
-      actions={<IconButton icon={<Icons.minus />} title="Layout entfernen" onClick={() => upd(n => { n.layout = null; }, 'layout-del')} />}>
+    <Section title="Layout" actions={<IconButton icon={<Icons.minus />} title="Layout entfernen – Elemente frei verschieben" onClick={() => upd(n => { n.layout = null; }, 'layout-del')} />}>
       <div className="row">
-        <Seg value={L.type} onChange={v => setL('type', v)} options={[
-          { value: 'flex', icon: <Icons.flexRow />, title: 'Flex – Reihe oder Spalte' },
-          { value: 'grid', icon: <Icons.grid />, title: 'Grid – Spalten und Zeilen' },
+        <span className="lbl">Art</span>
+        <Seg value={L.type} onChange={v => upd(n => { if (!n.layout) return; n.layout.type = v; if (v === 'grid' && !n.layout.columns.length) n.layout.columns = fr(2); }, 'layout-type')} options={[
+          { value: 'flex', icon: <span>Stapel</span>, title: 'Elemente neben- oder untereinander' },
+          { value: 'grid', icon: <span>Raster</span>, title: 'Elemente in Spalten und Zeilen' },
         ]} />
-        {L.type === 'flex' && (
-          <>
-            <Seg value={L.direction} onChange={v => setL('direction', v)} options={[
-              { value: 'row', icon: <Icons.flexRow />, title: 'Nebeneinander (Reihe)' },
-              { value: 'column', icon: <Icons.flexCol />, title: 'Untereinander (Spalte)' },
-            ]} />
-            <IconButton icon={<Icons.wrap />} title="Umbrechen, wenn der Platz nicht reicht" active={L.wrap} onClick={() => setL('wrap', !L.wrap)} />
-          </>
-        )}
       </div>
 
       {L.type === 'flex' ? (
         <>
           <div className="row">
+            <span className="lbl">Richtung</span>
+            <Seg value={L.direction} onChange={v => setL('direction', v)} options={[
+              { value: 'row', icon: <span>↔ Neben</span>, title: 'Nebeneinander (Reihe)' },
+              { value: 'column', icon: <span>↕ Unter</span>, title: 'Untereinander (Spalte)' },
+            ]} />
+          </div>
+          <div className="row">
             <span className="lbl">Verteilung</span>
-            <select className="select grow" value={L.justify} aria-label="Verteilung in Hauptrichtung" onChange={e => setL('justify', e.target.value as Justify)}>
+            <select className="select grow" value={L.justify} aria-label="Verteilung" onChange={e => setL('justify', e.target.value as Justify)}>
               {JUSTIFY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </div>
           <div className="row">
-            <span className="lbl">{row ? 'Vertikal' : 'Horizontal'}</span>
-            <Seg value={L.align} onChange={v => setL('align', v)} options={alignOpts(row)} />
+            <span className="lbl">Ausrichtung</span>
+            <Seg value={L.align} onChange={v => setL('align', v)} options={words(row
+              ? [['start', 'Oben'], ['center', 'Mitte'], ['end', 'Unten'], ['stretch', 'Strecken']]
+              : [['start', 'Links'], ['center', 'Mitte'], ['end', 'Rechts'], ['stretch', 'Strecken']])} />
           </div>
           <div className="row">
-            <NumberField label={row ? <Icons.gapH /> : <Icons.gapV />} title="Abstand zwischen den Elementen" min={0} suffix="px" value={L.gap} onChange={v => setL('gap', v)} />
+            <span className="lbl">Umbrechen</span>
+            {yes(L.wrap, b => setL('wrap', b), 'In eine neue Zeile rutschen, wenn der Platz nicht reicht')}
+          </div>
+          <div className="row">
+            <span className="lbl">Abstand</span>
+            <NumberField title="Abstand zwischen den Elementen" min={0} suffix="px" value={L.gap} onChange={v => setL('gap', v)} />
             {L.wrap
-              ? <NumberField label={row ? <Icons.gapV /> : <Icons.gapH />} title="Abstand zwischen den Zeilen (beim Umbrechen)" min={0} suffix="px" value={L.rowGap} onChange={v => setL('rowGap', v)} />
+              ? <NumberField label="Zeilen" title="Abstand zwischen den Zeilen (beim Umbrechen)" min={0} suffix="px" value={L.rowGap} onChange={v => setL('rowGap', v)} />
               : <div className="grow" />}
           </div>
         </>
       ) : (
         <>
-          <TrackList title="Spalten" tracks={L.columns} onChange={t => setL('columns', t)} />
-          <TrackList title="Zeilen" tracks={L.rows} onChange={t => setL('rows', t)} emptyHint="Automatisch – so viele wie nötig" />
           <div className="row">
-            <span className="lbl">Horizontal</span>
-            <Seg value={L.justifyItems} onChange={v => setL('justifyItems', v)} options={alignOpts(false)} />
+            <span className="lbl">Spaltenbreite</span>
+            <Seg value={auto ? 'auto' : custom ? 'own' : 'same'} onChange={v => {
+              setOwnCols(v === 'own');
+              upd(n => {
+                if (!n.layout) return;
+                if (v === 'auto') n.layout.colMin = n.layout.colMin || 240;
+                else { n.layout.colMin = null; if (v === 'same' && !uniform(n.layout.columns)) n.layout.columns = fr(n.layout.columns.length || 2); }
+              }, 'layout-colmode');
+            }} options={[
+              { value: 'same', icon: <span>Gleich</span>, title: 'Feste Anzahl gleich breiter Spalten' },
+              { value: 'auto', icon: <span>Automatisch</span>, title: 'So viele Spalten, wie hineinpassen – passt sich jeder Fensterbreite an' },
+              { value: 'own', icon: <span>Eigene</span>, title: 'Jede Spalte einzeln einstellen' },
+            ]} />
+          </div>
+          {auto ? (
+            <div className="row">
+              <span className="lbl">mindestens</span>
+              <NumberField title="Mindestbreite einer Spalte – passen mehr hinein, kommen Spalten dazu" min={40} suffix="px" precision={0} value={L.colMin ?? 240} onChange={v => setL('colMin', v)} />
+              <div className="grow" />
+            </div>
+          ) : custom ? (
+            <TrackList title="Spalten" tracks={L.columns} onChange={t => setL('columns', t)} minCount={1} />
+          ) : (
+            <Counter label="Spalten" value={L.columns.length} min={1} onChange={c => setL('columns', fr(c))} />
+          )}
+          <Counter label="Zeilen" value={L.rows.length} min={0} zeroText="Automatisch" onChange={c => setL('rows', c ? Array.from({ length: c }, () => ({ unit: 'auto' as const, value: 1 })) : [])} />
+          <div className="row">
+            <span className="lbl">Abstand</span>
+            <NumberField label="↔" title="Abstand zwischen den Spalten" min={0} suffix="px" value={L.gap} onChange={v => setL('gap', v)} />
+            <NumberField label="↕" title="Abstand zwischen den Zeilen" min={0} suffix="px" value={L.rowGap} onChange={v => setL('rowGap', v)} />
           </div>
           <div className="row">
-            <span className="lbl">Vertikal</span>
-            <Seg value={L.align} onChange={v => setL('align', v)} options={alignOpts(true)} />
+            <span className="lbl">Mauerwerk</span>
+            {yes(!!L.masonry, b => setL('masonry', b), 'Unterschiedlich hohe Kacheln greifen lückenlos ineinander (wie bei Pinterest)')}
           </div>
-          <div className="row">
-            <NumberField label={<Icons.gapH />} title="Spaltenabstand" min={0} suffix="px" value={L.gap} onChange={v => setL('gap', v)} />
-            <NumberField label={<Icons.gapV />} title="Zeilenabstand" min={0} suffix="px" value={L.rowGap} onChange={v => setL('rowGap', v)} />
-          </div>
+          {!L.masonry && (
+            <>
+              <div className="row">
+                <span className="lbl">In der Zelle</span>
+                <Seg value={L.justifyItems} onChange={v => setL('justifyItems', v)} options={words([['start', 'Links'], ['center', 'Mitte'], ['end', 'Rechts'], ['stretch', 'Breit']])} />
+              </div>
+              <div className="row">
+                <span className="lbl" />
+                <Seg value={L.align} onChange={v => setL('align', v)} options={words([['start', 'Oben'], ['center', 'Mitte'], ['end', 'Unten'], ['stretch', 'Hoch']])} />
+              </div>
+            </>
+          )}
+          {L.masonry && <p className="hint">Die Kacheln laufen spaltenweise von oben nach unten. Zeilen und Zellen-Platzierung gelten dann nicht.</p>}
         </>
       )}
 
       <div className="row">
-        {showIndiv ? (
-          <>
-            <NumberField label={<Icons.padT />} title="Innenabstand oben" min={0} value={pad[0]} onChange={v => setL('padding', [v, pad[1], pad[2], pad[3]])} />
-            <NumberField label={<Icons.padR />} title="Innenabstand rechts" min={0} value={pad[1]} onChange={v => setL('padding', [pad[0], v, pad[2], pad[3]])} />
-          </>
-        ) : (
-          <>
-            <NumberField label={<Icons.padV />} title="Innenabstand oben und unten" min={0} value={pad[0]} onChange={v => setL('padding', [v, pad[1], v, pad[3]])} />
-            <NumberField label={<Icons.padH />} title="Innenabstand links und rechts" min={0} value={pad[1]} onChange={v => setL('padding', [pad[0], v, pad[2], v])} />
-          </>
-        )}
-        <IconButton icon={<Icons.corners />} title="Innenabstand für jede Seite einzeln" active={showIndiv}
-          onClick={() => { if (showIndiv) { setIndivPad(false); setL('padding', [pad[0], pad[1], pad[0], pad[1]]); } else setIndivPad(true); }} />
+        <span className="lbl">Innenabstand</span>
+        <NumberField title="Innenabstand an allen Seiten" min={0} suffix="px" value={showIndiv && !padSame ? undefined : pad[0]} placeholder={padSame ? undefined : 'Gemischt'}
+          onChange={v => setL('padding', [v, v, v, v])} />
+        <Seg value={showIndiv ? 'each' : 'all'} onChange={v => { if (v === 'all') { setIndivPad(false); setL('padding', [pad[0], pad[0], pad[0], pad[0]]); } else setIndivPad(true); }} options={[
+          { value: 'all', icon: <span>Alle</span>, title: 'An allen Seiten gleich' },
+          { value: 'each', icon: <span>Einzeln</span>, title: 'Jede Seite einzeln' },
+        ]} />
       </div>
       {showIndiv && (
         <div className="row">
-          <NumberField label={<Icons.padB />} title="Innenabstand unten" min={0} value={pad[2]} onChange={v => setL('padding', [pad[0], pad[1], v, pad[3]])} />
-          <NumberField label={<Icons.padL />} title="Innenabstand links" min={0} value={pad[3]} onChange={v => setL('padding', [pad[0], pad[1], pad[2], v])} />
-          <div className="ibtn-spacer" />
+          <span className="lbl" />
+          <div className="quad">
+            {(['oben', 'rechts', 'unten', 'links'] as const).map((w, i) => (
+              <label key={w}>
+                <NumberField title={`Innenabstand ${w}`} min={0} value={pad[i]} onChange={v => setL('padding', pad.map((x, j) => (j === i ? v : x)) as Layout['padding'])} />
+                <small>{w}</small>
+              </label>
+            ))}
+          </div>
         </div>
       )}
     </Section>
+  );
+}
+
+/** Anzahl mit − und + (0 = „Automatisch“, wenn zeroText gesetzt) */
+function Counter({ label, value, min, onChange, zeroText }: { label: string; value: number; min: number; onChange: (v: number) => void; zeroText?: string }) {
+  return (
+    <div className="row">
+      <span className="lbl">{label}</span>
+      <NumberField title={label} min={min} max={24} precision={0} value={value || (zeroText ? undefined : value)} placeholder={zeroText}
+        onChange={v => onChange(Math.max(min, Math.min(24, Math.round(v))))} onClear={zeroText ? () => onChange(0) : undefined} />
+      <div className="stepper">
+        <button type="button" className="ibtn" title={`${label}: eine weniger`} aria-label={`${label}: eine weniger`} disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))}>−</button>
+        <button type="button" className="ibtn" title={`${label}: eine mehr`} aria-label={`${label}: eine mehr`} onClick={() => onChange(Math.min(24, value + 1))}>+</button>
+      </div>
+    </div>
   );
 }
 
@@ -396,47 +541,40 @@ function TrackList({ title, tracks, onChange, emptyHint, noAuto, minCount = 0 }:
 
 function LayoutItemSection({ nodes, parents, upd }: { nodes: WNode[]; parents: WNode[]; upd: Upd }) {
   const abs = common(nodes, n => n.absolute);
-  const grid = parents.every(p => p.layout?.type === 'grid');
+  const grid = parents.every(p => p.layout?.type === 'grid' && !p.layout.masonry);
+  const row = parents.every(p => p.layout?.type === 'flex' && p.layout.direction === 'row');
   const g = (k: 'col' | 'row' | 'colSpan' | 'rowSpan') => common(nodes, n => n.grid?.[k] ?? (k.endsWith('Span') ? 1 : 0));
   const setG = (k: 'col' | 'row' | 'colSpan' | 'rowSpan', v: number) =>
     upd(n => { n.grid = { col: 0, row: 0, colSpan: 1, rowSpan: 1, ...(n.grid ?? {}), [k]: Math.max(k.endsWith('Span') ? 1 : 0, Math.round(v)) }; }, 'grid-' + k);
-  const mm = (k: 'minW' | 'maxW' | 'minH' | 'maxH', title: string, label: string) => (
-    <NumberField label={label} title={`${title} (leer = keine Begrenzung)`} min={0} placeholder="–"
-      value={common(nodes, n => n[k]) ?? undefined}
-      onChange={v => upd(n => { n[k] = v; }, k)} onClear={() => upd(n => { n[k] = null; }, k)} />
-  );
+  if (abs === true) return null;
   return (
     <Section title="Im Layout">
-      <label className="check">
-        <input type="checkbox" checked={abs === true} onChange={e => upd(n => { n.absolute = e.target.checked; }, 'absolute')} />
-        Frei positionieren (ignoriert das Layout)
-      </label>
-      {abs !== true && (
+      <div className="row">
+        <span className="lbl">Ausrichtung</span>
+        <select className="select grow" value={common(nodes, n => n.alignSelf) ?? 'auto'} aria-label="Eigene Ausrichtung"
+          onChange={e => upd(n => { n.alignSelf = e.target.value as WNode['alignSelf']; }, 'alignSelf')}>
+          <option value="auto">Wie das Layout</option>
+          <option value="start">{row ? 'Oben' : 'Links'}</option><option value="center">Mitte</option>
+          <option value="end">{row ? 'Unten' : 'Rechts'}</option><option value="stretch">Ganze {row ? 'Höhe' : 'Breite'}</option>
+        </select>
+      </div>
+      {grid && (
         <>
           <div className="row">
-            <span className="lbl">Ausrichtung</span>
-            <select className="select grow" value={common(nodes, n => n.alignSelf) ?? 'auto'} aria-label="Eigene Ausrichtung"
-              onChange={e => upd(n => { n.alignSelf = e.target.value as WNode['alignSelf']; }, 'alignSelf')}>
-              <option value="auto">Wie das Layout</option><option value="start">Anfang</option><option value="center">Mitte</option>
-              <option value="end">Ende</option><option value="stretch">Strecken</option>
-            </select>
+            <span className="lbl">Spalte</span>
+            <NumberField title="In welcher Spalte (0 = automatisch)" min={0} precision={0} placeholder="auto" value={g('col') || undefined} onChange={v => setG('col', v)} onClear={() => setG('col', 0)} />
+            <span className="sep-word">breit</span>
+            <NumberField title="Wie viele Spalten breit" min={1} precision={0} suffix="Sp." value={g('colSpan')} onChange={v => setG('colSpan', v)} />
           </div>
-          {grid && (
-            <>
-              <div className="row">
-                <NumberField label="Sp" title="Spalte (0 = automatisch)" min={0} precision={0} value={g('col')} onChange={v => setG('col', v)} />
-                <NumberField label="×" title="Spalten überspannen" min={1} precision={0} value={g('colSpan')} onChange={v => setG('colSpan', v)} />
-              </div>
-              <div className="row">
-                <NumberField label="Ze" title="Zeile (0 = automatisch)" min={0} precision={0} value={g('row')} onChange={v => setG('row', v)} />
-                <NumberField label="×" title="Zeilen überspannen" min={1} precision={0} value={g('rowSpan')} onChange={v => setG('rowSpan', v)} />
-              </div>
-            </>
-          )}
-          <div className="row">{mm('minW', 'Mindestbreite', 'B↓')}{mm('maxW', 'Maximalbreite', 'B↑')}</div>
-          <div className="row">{mm('minH', 'Mindesthöhe', 'H↓')}{mm('maxH', 'Maximalhöhe', 'H↑')}</div>
+          <div className="row">
+            <span className="lbl">Zeile</span>
+            <NumberField title="In welcher Zeile (0 = automatisch)" min={0} precision={0} placeholder="auto" value={g('row') || undefined} onChange={v => setG('row', v)} onClear={() => setG('row', 0)} />
+            <span className="sep-word">hoch</span>
+            <NumberField title="Wie viele Zeilen hoch" min={1} precision={0} suffix="Z." value={g('rowSpan')} onChange={v => setG('rowSpan', v)} />
+          </div>
         </>
       )}
+      <p className="hint">Frei verschieben oder fixieren: oben bei „Position“.</p>
     </Section>
   );
 }
@@ -454,6 +592,7 @@ function BoardSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
   const align = site?.contentAlign ?? 'center';
   const alignWord = align === 'left' ? 'links' : align === 'right' ? 'rechts' : 'mittig';
   return (
+    <>
     <Section title="Board">
       <div className="row">
         <select className="select grow" value={match ? match[0] : ''} aria-label="Größenvorlage"
@@ -483,35 +622,64 @@ function BoardSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
         </label>
       )}
       {nodes.length === 1 && !site && nodes[0].parentId && <FullscreenRows node={nodes[0]} />}
-      {site && (
-        <>
-          <label className="check" title="In Browserfenstern, die breiter sind als hier eingestellt, bleibt der Inhalt so breit. Hintergründe und Flächen laufen trotzdem bis zum Fensterrand.">
-            <input type="checkbox" checked={cw !== null} onChange={e => setCw(e.target.checked ? desktopW : null)} />
-            Inhaltsbreite in breiten Fenstern begrenzen
-          </label>
-          {cw !== null && (
-            <>
-              <div className="row">
-                <span className="lbl">Höchstens</span>
-                <NumberField title="Größte Breite des Inhalts" suffix="px" min={320} max={4000} step={10} precision={0} value={cw} onChange={v => setCw(v)} />
-              </div>
-              <div className="row">
-                <span className="lbl">Inhalt steht</span>
-                <Seg value={align} onChange={v => site && setShared([site.id], n => { n.contentAlign = v === 'center' ? undefined : v; }, 'contentAlign')} options={[
-                  { value: 'left', icon: <span>Links</span>, title: 'Inhalt am linken Fensterrand, rechts freie Fläche' },
-                  { value: 'center', icon: <span>Mitte</span>, title: 'Inhalt mittig, links und rechts gleich viel freie Fläche' },
-                  { value: 'right', icon: <span>Rechts</span>, title: 'Inhalt am rechten Fensterrand, links freie Fläche' },
-                ]} />
-              </div>
-            </>
-          )}
-          <p className="proto-hint">
-            {cw === null
-              ? 'In Fenstern breiter als das Board bleiben frei platzierte Elemente an ihrer Stelle links, Elemente im Layout ziehen sich in die Breite.'
-              : `In breiteren Fenstern bleibt der Inhalt höchstens ${cw} px breit und steht ${alignWord}. Hintergründe laufen bis zum Rand. Zu sehen in der Vorschau, wenn das Fenster breiter ist (oder mit ⌘ − verkleinert).`}
-          </p>
-        </>
+    </Section>
+    {site && <SiteSection site={site} />}
+    </>
+  );
+}
+
+/** Nur am Webseiten-Board: Einstellungen für die ganze Webseite */
+function SiteSection({ site }: { site: WNode }) {
+  const desktopW = useEditor(s => pageOf(s).nodes[site.id]?.w) ?? 1440;
+  const base = useEditor(s => s.doc.site?.baseFont ?? 16);
+  const grid = useEditor(s => pageOf(s).nodes[site.id]?.colGrid ?? null);
+  const cw = site.contentWidth ?? null;
+  const setCw = (v: number | null) => setShared([site.id], n => { n.contentWidth = v; }, 'contentWidth');
+  const align = site.contentAlign ?? 'center';
+  const alignWord = align === 'left' ? 'links' : align === 'right' ? 'rechts' : 'mittig';
+  const setBase = (v: number) => useEditor.getState().mutate((_, d) => { d.site = { ...(d.site ?? { name: d.name, lang: 'de', url: '', favicon: null, selfHostFonts: false }), baseFont: Math.max(10, Math.min(28, Math.round(v))) }; }, { key: 'baseFont' });
+  const gridKey = !grid ? 'off' : `${grid.count}`;
+  return (
+    <Section title="Webseite">
+      <div className="row">
+        <span className="lbl">Inhaltsbreite</span>
+        <NumberField title="Größte Breite des Inhalts in breiten Fenstern" suffix="px" min={320} max={4000} step={10} precision={0}
+          value={cw ?? undefined} placeholder="unbegrenzt" disabled={cw === null} onChange={v => setCw(v)} />
+        <Seg value={cw === null ? 'off' : 'on'} onChange={v => setCw(v === 'on' ? desktopW : null)} options={[
+          { value: 'off', icon: <span>Aus</span>, title: 'Inhalt wächst mit dem Fenster' },
+          { value: 'on', icon: <span>An</span>, title: 'In breiten Fenstern bleibt der Inhalt höchstens so breit' },
+        ]} />
+      </div>
+      {cw !== null && (
+        <div className="row">
+          <span className="lbl">Inhalt steht</span>
+          <Seg value={align} onChange={v => setShared([site.id], n => { n.contentAlign = v === 'center' ? undefined : v; }, 'contentAlign')} options={[
+            { value: 'left', icon: <span>Links</span>, title: 'Inhalt am linken Fensterrand, rechts freie Fläche' },
+            { value: 'center', icon: <span>Mitte</span>, title: 'Inhalt mittig, links und rechts gleich viel freie Fläche' },
+            { value: 'right', icon: <span>Rechts</span>, title: 'Inhalt am rechten Fensterrand, links freie Fläche' },
+          ]} />
+        </div>
       )}
+      <Counter label="Grundschrift" value={base} min={10} onChange={setBase} />
+      <div className="row">
+        <span className="lbl">Hilfsraster</span>
+        <select className="select grow" aria-label="Hilfsraster" value={gridKey} onChange={e => {
+          const v = e.target.value;
+          setGrid([site.id], v === 'off' ? null : { ...(grid ?? defaultGrid()), count: +v, visible: true });
+        }}>
+          <option value="off">Aus</option>
+          {grid && ![12, 6, 4].includes(grid.count) && <option value={String(grid.count)}>{grid.count} Spalten</option>}
+          <option value="12">12 Spalten · {grid?.gutter ?? 24} px Abstand</option>
+          <option value="6">6 Spalten</option>
+          <option value="4">4 Spalten</option>
+        </select>
+      </div>
+      <p className="proto-hint">
+        {cw === null
+          ? 'Inhaltsbreite aus: In breiteren Fenstern ziehen sich Elemente im Layout mit in die Breite.'
+          : `In breiteren Fenstern bleibt der Inhalt höchstens ${cw} px breit und steht ${alignWord}. Hintergründe laufen bis zum Rand.`}
+        {' '}Grundschrift: Größe für neue Texte und für Text ohne eigene Größe. Das Hilfsraster ist nur im Editor zu sehen (Feineinstellung unten unter „Spaltenraster“).
+      </p>
     </Section>
   );
 }
@@ -658,15 +826,26 @@ function LayerSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
   return (
     <Section title="Ebene">
       <div className="row">
+        <span className="lbl">Sichtbar</span>
+        <Seg value={visible === undefined ? undefined : visible ? 'yes' : 'no'} onChange={v => upd(n => { n.visible = v === 'yes'; }, 'vis')} options={[
+          { value: 'yes', icon: <span>Ja</span>, title: 'Sichtbar' },
+          { value: 'no', icon: <span>Nein</span>, title: 'Ausblenden – geht auch nur für Tablet oder Handy' },
+        ]} />
+      </div>
+      <div className="row">
+        <span className="lbl">Deckkraft</span>
+        <NumberField className="w72" title="Deckkraft" suffix="%" min={0} max={100} precision={0}
+          value={op === undefined ? undefined : Math.round(op * 100)} onChange={v => upd(n => { n.opacity = v / 100; }, 'opacity')} />
+        <input type="range" className="grow" min={0} max={100} step={1} aria-label="Deckkraft" value={op === undefined ? 100 : Math.round(op * 100)}
+          onChange={e => upd(n => { n.opacity = +e.target.value / 100; }, 'opacity')} />
+      </div>
+      <div className="row">
+        <span className="lbl">Mischmodus</span>
         <select className="select grow" value={common(nodes, n => n.blendMode) ?? ''} aria-label="Mischmodus"
           onChange={e => upd(n => { n.blendMode = e.target.value as BlendMode; }, 'blend')}>
           {common(nodes, n => n.blendMode) === undefined && <option value="" disabled>Gemischt</option>}
           {BLEND_MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
-        <NumberField className="w72" title="Deckkraft" suffix="%" min={0} max={100} precision={0}
-          value={op === undefined ? undefined : Math.round(op * 100)} onChange={v => upd(n => { n.opacity = v / 100; }, 'opacity')} />
-        <IconButton icon={visible === false ? <Icons.eyeOff /> : <Icons.eye />} title={visible === false ? 'Einblenden' : 'Ausblenden (auch nur für Tablet/Mobil möglich)'}
-          onClick={() => upd(n => { n.visible = visible === false; }, 'vis')} />
       </div>
     </Section>
   );

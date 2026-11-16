@@ -77,6 +77,10 @@ export interface Layout {
   justifyItems: AlignItems;       // Grid: horizontale Ausrichtung in der Zelle
   columns: Track[];               // Grid
   rows: Track[];                  // Grid
+  /** Grid: Spalten automatisch – so viele, wie bei dieser Mindestbreite (px) hineinpassen */
+  colMin?: number | null;
+  /** Grid: Mauerwerk – unterschiedlich hohe Kacheln laufen spaltenweise ineinander */
+  masonry?: boolean;
 }
 
 export interface GridPlacement { col: number; row: number; colSpan: number; rowSpan: number } // 0 = automatisch
@@ -294,6 +298,8 @@ export interface SiteSettings {
   /** Eigener Code im <head> bzw. am Ende von <body> jeder Seite (nur Vorschau & Export) */
   headCode?: string;
   bodyCode?: string;
+  /** Grundschrift in px: Größe für neue Texte und für Text ohne eigene Größe */
+  baseFont?: number;
 }
 
 export interface Page {
