@@ -13,23 +13,28 @@ import { ProjectDialog } from './panels/ProjectDialog';
 import { ClaudeNote } from './claude/ClaudeUI';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { ComponentBar } from './panels/ComponentBar';
+import { SidebarResizer, useSidebarWidth } from './ui/SidebarResizer';
 
 export function App() {
   const theme = useEditor(s => s.theme);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useShortcuts();
+  const [lw, setLw] = useSidebarWidth('left');
+  const [rw, setRw] = useSidebarWidth('right');
   return (
     <div className="app">
       <TopBar />
       <div className="main">
-        <aside className="sidebar left" aria-label="Seiten und Ebenen"><LeftPanel /></aside>
+        <aside className="sidebar left" aria-label="Seiten und Ebenen" style={{ width: lw }}><LeftPanel /></aside>
+        <SidebarResizer side="left" width={lw} onChange={setLw} />
         <div className="canvas-wrap">
           <Canvas />
           <Toolbar />
           <ClaudeNote />
           <ComponentBar />
         </div>
-        <aside className="sidebar right" aria-label="Eigenschaften"><RightPanel /></aside>
+        <SidebarResizer side="right" width={rw} onChange={setRw} />
+        <aside className="sidebar right" aria-label="Eigenschaften" style={{ width: rw }}><RightPanel /></aside>
       </div>
       <ExportDialog />
       <PublishDialog />

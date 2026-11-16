@@ -49,7 +49,30 @@ type Gesture =
     box: Rect; moved: boolean; alt: boolean; delta: Pt; layoutDrop: { target: string; anchorId: string | null } | null;
   }
   | { kind: 'resize'; handle: Handle; start: Pt; ids: string[]; box: Rect; rects: Record<string, Rect> }
-  | { kind: 'marquee'; start: Pt; candidates: string[]; base: string[] };
+  | { kind: 'marquee'; start: Pt; container: string | null; base: string[] }
+  /** Druck auf die leere Fläche eines Boards mit Inhalt: Ziehen = Auswahlrahmen, Klick = Board auswählen */
+  | { kind: 'press'; id: string; start: Pt; startClient: Pt; base: string[] };
+
+/** Board mit Inhalt (kein Komponenten-Kopie-Rahmen): wird beim Auswahlrahmen durchsucht statt selbst gewählt */
+const isContainer = (n: WNode | undefined) => !!n && n.type === 'board' && n.children.length > 0 && !n.componentId && !n.isMain;
+
+/** Ebenen, die ein Auswahlrahmen trifft: Boards mit Inhalt nur, wenn sie ganz im Rahmen liegen – sonst deren Inhalt */
+function marqueeHits(page: Page, containerId: string | null, r: Rect): string[] {
+  const out: string[] = [];
+  const walk = (ids: string[]) => {
+    for (const i of ids) {
+      const n = page.nodes[i];
+      if (!n || !n.visible || n.locked) continue;
+      const a = absRect(page, i);
+      if (!intersects(a, r)) continue;
+      const inside = a.x >= r.x && a.y >= r.y && a.x + a.w <= r.x + r.w && a.y + a.h <= r.y + r.h;
+      if (isContainer(n) && !inside) walk(n.children);
+      else out.push(i);
+    }
+  };
+  walk(containerId ? page.nodes[containerId]?.children ?? [] : page.rootIds);
+  return out;
+}
 
 /** Welche Ebene wird bei einem Klick ausgewählt? */
 function pickNode(page: Page, target: HTMLElement): string | null {
@@ -298,6 +321,11 @@ export function Canvas() {
       return;
     }
     const id = pickNode(pg, target);
+    // Leere Fläche eines Boards mit Inhalt: erst beim Loslassen ohne Ziehen auswählen, beim Ziehen Auswahlrahmen
+    if (id && !target.closest('[data-board-title]') && isContainer(pg.nodes[id]) && !s.selection.includes(id) && !e.metaKey && !e.ctrlKey) {
+      g.current = { kind: 'press', id, start: p, startClient: { x: e.clientX, y: e.clientY }, base: e.shiftKey ? s.selection : [] };
+      return;
+    }
     if (id) {
       let sel = s.selection;
       if (e.shiftKey || e.metaKey || e.ctrlKey) {
@@ -320,10 +348,9 @@ export function Canvas() {
     }
     // Auswahlrahmen aufziehen
     const container = rootBoardOf(pg, target);
-    const candidates = containerOf(pg, container).filter(i => pg.nodes[i].visible && !pg.nodes[i].locked);
     const base = e.shiftKey ? s.selection : [];
     if (!e.shiftKey) s.setSelection([]);
-    g.current = { kind: 'marquee', start: p, candidates, base };
+    g.current = { kind: 'marquee', start: p, container, base };
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -489,11 +516,16 @@ export function Canvas() {
         }, { history: false });
         break;
       }
+      case 'press': {
+        if (Math.hypot(e.clientX - gs.startClient.x, e.clientY - gs.startClient.y) < 4) break;
+        g.current = { kind: 'marquee', start: gs.start, container: gs.id, base: gs.base };
+        if (!gs.base.length) s.setSelection([]);
+        break;
+      }
       case 'marquee': {
         const r = normRect(gs.start.x, gs.start.y, p.x, p.y);
         setMarquee(r);
-        const pg = viewPage(s);
-        const hit = gs.candidates.filter(i => pg.nodes[i] && intersects(absRect(pg, i), r));
+        const hit = marqueeHits(viewPage(s), gs.container, r);
         s.setSelection([...new Set([...gs.base, ...hit])]);
         break;
       }
@@ -575,6 +607,12 @@ export function Canvas() {
       case 'marquee':
         setMarquee(null);
         break;
+      case 'press': {
+        // Nur geklickt: Board auswählen (mit ⇧ dazunehmen)
+        const s = useEditor.getState();
+        s.setSelection(gs.base.length ? [...new Set([...gs.base, gs.id])] : [gs.id]);
+        break;
+      }
     }
   };
 
