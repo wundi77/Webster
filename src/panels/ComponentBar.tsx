@@ -2,13 +2,14 @@
 import { useEditor, pageOf } from '../store';
 import { closeComponent, isComponentPage, instanceCount, listComponents } from '../model/library';
 import { Icons } from '../ui/icons';
+import { animRootOf } from '../model/animCore';
 
 export function ComponentBar() {
   const info = useEditor(s => {
     if (!isComponentPage(s.doc, s.pageId)) return null;
     const pg = pageOf(s);
     const root = pg.nodes[pg.rootIds[0]];
-    if (!root) return null;
+    if (!root || animRootOf(pg)) return null;
     const c = listComponents(s.doc).find(x => x.id === root.id);
     return `${c?.name ?? root.name}|${instanceCount(s.doc, root.id)}`;
   });

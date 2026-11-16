@@ -212,6 +212,10 @@ export interface WNode {
   compareAfter?: boolean;
   /** Fertige Animation (Lottie) aus der Bibliothek */
   lottie?: { ref: string; loop: boolean; play: 'auto' | 'view' | 'hover' } | null;
+  /** Eigene Animation: Schlüsselbilder je Eigenschaft (Zeit in Sekunden) */
+  anim?: AnimTracks | null;
+  /** Oberstes Board einer eigenen Animation: Zustände, Wiederholen, Start */
+  animation?: AnimSettings | null;
   /** Beim Scrollen fixieren */
   pin?: Pin | null;
   /** Abweichungen nach dem Scrollen (gelten für alle Breakpoints) */
@@ -250,6 +254,23 @@ export interface WNode {
   vector?: VectorSpec;
   /** Abweichungen für kleinere Bildschirme (Tablet erbt Desktop, Mobil erbt Tablet) */
   overrides?: Partial<Record<Exclude<Breakpoint, 'desktop'>, Partial<WNode>>>;
+}
+
+/** Eigenschaften, die sich in einer eigenen Animation ändern können */
+export type AnimProp = 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'color';
+/** Wie der Übergang zum nächsten Schlüsselbild verläuft */
+export type AnimEase = 'linear' | 'smooth' | 'in' | 'out' | 'back' | 'bounce';
+/** Schlüsselbild: Zeit (s), Wert, Verlauf bis zum nächsten Schlüsselbild */
+export interface AnimKey { t: number; v: number | string; ease?: AnimEase }
+export type AnimTracks = Partial<Record<AnimProp, AnimKey[]>>;
+/** Benannter Zeitpunkt (Zustand) mit dem Übergang zum nächsten */
+export interface AnimState { id: string; name: string; t: number; ease: AnimEase }
+export interface AnimSettings {
+  states: AnimState[];
+  /** einmal, immer wieder oder hin und zurück */
+  repeat: 'once' | 'loop' | 'alternate';
+  /** Start: sofort, wenn sie ins Bild kommt, bei Maus darüber, beim Klick */
+  play: 'auto' | 'view' | 'hover' | 'click';
 }
 
 /** Ab welcher Größe wird das Menü zum ☰-Symbol? */

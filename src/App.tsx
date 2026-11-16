@@ -13,6 +13,7 @@ import { ProjectDialog } from './panels/ProjectDialog';
 import { ClaudeNote } from './claude/ClaudeUI';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { ComponentBar } from './panels/ComponentBar';
+import { AnimBar } from './panels/AnimBar';
 import { SidebarResizer, useSidebarWidth } from './ui/SidebarResizer';
 
 export function App() {
@@ -32,6 +33,7 @@ export function App() {
           <Toolbar />
           <ClaudeNote />
           <ComponentBar />
+          <AnimBar />
         </div>
         <SidebarResizer side="right" width={rw} onChange={setRw} />
         <aside className="sidebar right" aria-label="Eigenschaften" style={{ width: rw }}><RightPanel /></aside>

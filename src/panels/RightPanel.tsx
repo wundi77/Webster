@@ -33,7 +33,7 @@ import { HOVER_NAMES, withState } from '../model/hover';
 import { openPreview } from '../preview/bridge';
 import { hasFxTransform } from '../export/html';
 import { MotionSection } from './MotionSection';
-import { BlocksInsertSection, CarouselSection, CompareSection, LottieSection } from './BlocksSection';
+import { BlocksInsertSection, CarouselSection, CompareSection, LottieSection, OwnAnimSection } from './BlocksSection';
 import type { Link, RevealType } from '../model/types';
 import { TYPO_KEYS, type ColorAsset } from '../model/types';
 
@@ -1489,6 +1489,7 @@ function ProtoTab() {
       {nodes.length === 1 && nodes[0].carousel && <CarouselSection node={nodes[0]} />}
       {nodes.length === 1 && nodes[0].compare && <CompareSection node={nodes[0]} />}
       {nodes.length === 1 && nodes[0].lottie && <LottieSection node={nodes[0]} />}
+      {nodes.length === 1 && nodes[0].componentId && <OwnAnimSection node={nodes[0]} />}
       <MotionSection nodes={nodes} ids={ids} />
       <ScrollSection nodes={nodes} ids={ids} />
     </>

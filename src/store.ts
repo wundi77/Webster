@@ -8,6 +8,7 @@ import { saveBackup, type BackupMeta } from './persist';
 import { afterMutate } from './model/components';
 import { allPages, enforcePageRules } from './model/pageRules';
 import { startPreviewBridge } from './preview/bridge';
+import { animPageAt, isAnimPage, recordAnim, useAnimClock } from './model/animCore';
 
 export type Tool = 'move' | 'board' | 'rect' | 'ellipse' | 'text' | 'image' | 'hand' | 'line' | 'arrow' | 'triangle' | 'polygon' | 'star';
 export type Theme = 'dark' | 'light';
@@ -23,6 +24,8 @@ interface MutateOpts {
 
 export interface EditorState {
   doc: WDocument;
+  /** Abspielkopf der geöffneten Animation (Kopie aus useAnimClock, damit die Ansicht neu zeichnet) */
+  animT: number;
   pageId: string;
   selection: string[];
   hoverId: string | null;
@@ -102,6 +105,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   theme: loadTheme(),
   saveError: false,
   breakpoint: 'desktop',
+  animT: 0,
   interaction: 'normal',
   setInteraction: interaction => set({ interaction }),
   geom: {},
@@ -120,7 +124,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     document.documentElement.dataset.theme = theme;
     set({ theme });
   },
-  setPage: pageId => set({ pageId, selection: [], hoverId: null, editingTextId: null }),
+  setPage: pageId => { useAnimClock.setState({ t: 0, playing: false, key: null }); set({ pageId, selection: [], hoverId: null, editingTextId: null }); },
   loadDocument: raw => {
     const doc = produce(raw, d => { migrateDocument(d as WDocument); });
     lastKey = null;
@@ -133,6 +137,11 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const raw = produce(s.doc, draft => {
       const page = allPages(draft).find(p => p.id === s.pageId) ?? draft.pages[0];
       recipe(page, draft);
+      // Animationsseite: Änderungen werden zu Schlüsselbildern beim Abspielkopf
+      if (isAnimPage(s.doc, s.pageId)) {
+        const prev = allPages(s.doc).find(p => p.id === s.pageId);
+        if (prev) recordAnim(prev, page, s.animT);
+      }
       allowed = enforcePageRules(s.doc, draft);
     });
     if (raw === s.doc || !allowed) return;
@@ -188,7 +197,10 @@ export const useEditor = create<EditorState>()((set, get) => ({
 export const pageOf = (s: EditorState): Page => allPages(s.doc).find(p => p.id === s.pageId) ?? s.doc.pages[0];
 
 /** Seite, wie sie im aktuellen Breakpoint aussieht (nur lesen!) */
-export const viewPage = (s: EditorState): Page => resolvePage(pageOf(s), s.breakpoint);
+export const viewPage = (s: EditorState): Page => {
+  const p = resolvePage(pageOf(s), s.breakpoint);
+  return isAnimPage(s.doc, s.pageId) ? animPageAt(p, s.animT) : p;
+};
 
 // Stille Notfallkopie im Browser (IndexedDB) – ersetzt NICHT das Speichern im Projektordner
 // null = (noch) nichts sichern, z. B. solange im Startfenster noch kein Projekt gewählt ist
@@ -211,7 +223,14 @@ useEditor.subscribe((s, prev) => {
 startPreviewBridge(() => useEditor.getState().doc, fn => useEditor.subscribe((s, p) => { if (s.doc !== p.doc) fn(); }));
 
 // Nur in der Entwicklung: Zugriff für automatische Tests
-if (import.meta.env.DEV) (window as unknown as { __webster: typeof useEditor }).__webster = useEditor;
+if (import.meta.env.DEV) {
+  (window as unknown as { __webster: typeof useEditor }).__webster = useEditor;
+  // Tests: dieselben Modul-Instanzen wie die App
+  (window as unknown as Record<string, unknown>).__websterAnim = { clock: useAnimClock, load: () => Promise.all([import('./model/anim'), import('./model/animCore'), import('./model/library'), import('./export/html')]) };
+}
 
 // Grundschrift für neue Texte aktuell halten
 useEditor.subscribe(s => setBaseFontSize(s.doc.site?.baseFont));
+
+// Abspielkopf → Ansicht neu zeichnen
+useAnimClock.subscribe((c, p) => { if (c.t !== p.t) useEditor.setState({ animT: c.t }); });

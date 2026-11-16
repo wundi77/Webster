@@ -6,6 +6,9 @@ import { addAnimationFile, insertAnimation, insertCarousel, insertCompare, inser
 import { currentPageHasRoot } from '../model/embed';
 import { uid } from '../model/factory';
 import { NumberField, Section, Seg } from '../ui/controls';
+import { newAnimation, openAnimation } from '../model/anim';
+import { insertInstance } from '../model/library';
+import { allPages } from '../model/pageRules';
 
 const S = () => useEditor.getState();
 const NO_ANIMS: never[] = [];
@@ -49,6 +52,7 @@ export function BlocksInsertSection() {
           </button>
         ))}
       </div>
+      <OwnAnimInsert hasRoot={hasRoot} />
       <div className="fx-group">Fertige Animation</div>
       {anims.length > 0 && (
         <div className="row">
@@ -183,6 +187,51 @@ export function LottieSection({ node }: { node: WNode }) {
           { value: 'yes', icon: <span>Ja</span>, title: 'Läuft immer wieder' }, { value: 'no', icon: <span>Nein</span>, title: 'Läuft einmal und bleibt dann stehen' }]} />
       </div>
       <p className="proto-hint">Auf der Arbeitsfläche steht sie still, in der Vorschau läuft sie.</p>
+    </Section>
+  );
+}
+
+/** Eigene Animationen (im Animations-Editor gebaut) */
+const ownAnims = (doc: ReturnType<typeof S>['doc']) =>
+  (doc.componentPages ?? []).map(p => p.nodes[p.rootIds[0]]).filter(r => r?.animation).map(r => ({ id: r.id, name: r.name }));
+
+function OwnAnimInsert({ hasRoot }: { hasRoot: boolean }) {
+  const list = useEditor(s => JSON.stringify(ownAnims(s.doc)));
+  const items = JSON.parse(list) as { id: string; name: string }[];
+  return (
+    <>
+      <div className="fx-group">Eigene Animation</div>
+      <div className="row">
+        <button type="button" className="btn grow" disabled={!hasRoot} onClick={newAnimation} title="Öffnet den Animations-Editor mit Zeitleiste">＋ Neue Animation zeichnen</button>
+      </div>
+      {items.length > 0 && (
+        <div className="row">
+          <select className="select grow" aria-label="Eigene Animation einfügen" value="" disabled={!hasRoot} onChange={e => e.target.value && insertInstance(e.target.value)}>
+            <option value="">Eigene einfügen …</option>
+            {items.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+      )}
+      <p className="proto-hint">Animierte Icons, Grafiken oder Diagramme selbst zeichnen und mit Zuständen oder einer Zeitleiste bewegen. Jede Animation lässt sich mehrfach einbauen und später weiter bearbeiten.</p>
+    </>
+  );
+}
+
+/** Ausgewählte Kopie einer eigenen Animation */
+export function OwnAnimSection({ node }: { node: WNode }) {
+  const info = useEditor(s => {
+    const cid = node.componentId;
+    if (!cid) return null;
+    const pm = allPages(s.doc).find(p => p.nodes[cid]?.isMain);
+    const m = pm?.nodes[cid];
+    return m?.animation ? `${cid}|${m.name}` : null;
+  });
+  if (!info) return null;
+  const [id, name] = info.split('|');
+  return (
+    <Section title="Eigene Animation">
+      <p className="proto-hint" style={{ marginTop: 0 }}><b>{name}</b> – auf der Arbeitsfläche siehst du das Ende, auf der Website läuft sie ab.</p>
+      <div className="row"><button type="button" className="btn primary grow" onClick={() => openAnimation(id)}>Animation bearbeiten</button></div>
     </Section>
   );
 }

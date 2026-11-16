@@ -181,7 +181,7 @@ function useGeometrySync(world: React.RefObject<HTMLDivElement | null>) {
     const ro = new ResizeObserver(schedule);
     schedule();
     const unsub = useEditor.subscribe((s, p) => {
-      if (s.doc !== p.doc || s.breakpoint !== p.breakpoint || s.pageId !== p.pageId || s.editingTextId !== p.editingTextId) schedule();
+      if (s.doc !== p.doc || s.breakpoint !== p.breakpoint || s.pageId !== p.pageId || s.editingTextId !== p.editingTextId || s.animT !== p.animT) schedule();
     });
     document.fonts?.addEventListener('loadingdone', schedule);
     if (world.current) ro.observe(world.current);

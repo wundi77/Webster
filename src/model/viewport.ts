@@ -21,8 +21,12 @@ export const setZoom100 = () => zoomBy(1 / S().zoom);
 
 export function fitRect(r: Rect | null, padding = 60) {
   const s = S();
-  const { w, h } = s.viewport;
-  if (!w || !h) return;
+  const { w } = s.viewport;
+  // Animations-Leiste unten: Fläche darüber nutzen (eigene Zeitleiste ist höher)
+  const bar = document.querySelector<HTMLElement>('.anim-bar');
+  const reserve = bar ? bar.offsetHeight + 12 : 0;
+  const h = s.viewport.h - reserve;
+  if (!w || h <= 0) return;
   if (!r || r.w <= 0 || r.h <= 0) { s.setView(1, { x: 80, y: 80 }); return; }
   const z = clampZoom(Math.min((w - padding * 2) / r.w, (h - padding * 2) / r.h));
   s.setView(z, { x: w / 2 - (r.x + r.w / 2) * z, y: h / 2 - (r.y + r.h / 2) * z });

@@ -9,6 +9,7 @@ import { BREAKPOINTS } from '../model/factory';
 import { EMBED_INFO, embedOpenUrl, embedSrc } from '../model/embedCore';
 import { VECTOR_PAINT_CSS, vectorSvg } from '../model/vectorCore';
 import { LOTTIE_PLAYER } from './lottiePlayer';
+import { isAnimated, sampleTimes, subtreeDuration, withAnim } from '../model/animCore';
 
 type Css = Record<string, string>;
 
@@ -91,7 +92,7 @@ h1, h2, h3, h4, p { margin: 0; font: inherit; }
 export const REVEAL_JS = `(function(){var els=document.querySelectorAll('[data-reveal]');if(!('IntersectionObserver' in window)){els.forEach(function(e){e.classList.add('in')});return}var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:0.12,rootMargin:'0px 0px -5% 0px'});els.forEach(function(e){io.observe(e)})})();`;
 
 /** Bewegungen (Bereich „Bewegung“): Grundwerte als registrierte Variablen, damit sie sich animieren lassen */
-export const MOTION_CSS = `@property --fx-x{syntax:'<length>';inherits:false;initial-value:0px}
+const MOTION_CSS_BASE = `@property --fx-x{syntax:'<length>';inherits:false;initial-value:0px}
 @property --fx-y{syntax:'<length>';inherits:false;initial-value:0px}
 @property --fm-x{syntax:'<length>';inherits:false;initial-value:0px}
 @property --fm-y{syntax:'<length>';inherits:false;initial-value:0px}
@@ -140,7 +141,7 @@ export const MOTION_CSS = `@property --fx-x{syntax:'<length>';inherits:false;ini
   [data-fx-side] { overflow-x: auto !important; position: relative !important; top: auto !important; }
 }`;
 
-export const MOTION_JS = `(function(){var R=matchMedia('(prefers-reduced-motion: reduce)').matches,D=document,Q=function(s){return [].slice.call(D.querySelectorAll(s))},cl=function(v,a,b){return Math.max(a,Math.min(b,v))},texts=function(el){var w=D.createTreeWalker(el,4),a=[];while(w.nextNode())a.push(w.currentNode);return a},ms=function(el,k,d){var v=parseFloat(getComputedStyle(el).getPropertyValue(k));return isNaN(v)?d:v},MA=ms(D.documentElement,'--ma',1),MF=ms(D.documentElement,'--mf',1);
+const MOTION_JS_BASE = `(function(){var R=matchMedia('(prefers-reduced-motion: reduce)').matches,D=document,Q=function(s){return [].slice.call(D.querySelectorAll(s))},cl=function(v,a,b){return Math.max(a,Math.min(b,v))},texts=function(el){var w=D.createTreeWalker(el,4),a=[];while(w.nextNode())a.push(w.currentNode);return a},ms=function(el,k,d){var v=parseFloat(getComputedStyle(el).getPropertyValue(k));return isNaN(v)?d:v},MA=ms(D.documentElement,'--ma',1),MF=ms(D.documentElement,'--mf',1);
 Q('[data-reveal="words"]').forEach(function(el){var i=0;texts(el).forEach(function(t){var f=D.createDocumentFragment();t.nodeValue.split(/(\\s+)/).forEach(function(p){if(!p)return;if(/^\\s+$/.test(p)){f.appendChild(D.createTextNode(p));return}var s=D.createElement('span');s.className='w-wd';s.style.setProperty('--i',i++);s.textContent=p;f.appendChild(s)});t.parentNode.replaceChild(f,t)})});
 var cnt=Q('[data-reveal="count"]').map(function(el){var items=texts(el).map(function(t){var s=t.nodeValue,m,re=/\\d[\\d.,]*\\d|\\d/g,l=[];while((m=re.exec(s)))l.push({i:m.index,str:m[0]});return {t:t,s:s,l:l}}).filter(function(x){return x.l.length});
 function put(p){items.forEach(function(x){var out=x.s;for(var k=x.l.length-1;k>=0;k--){var it=x.l[k],str=it.str,v;var dm=/,(\\d{1,2})$/.exec(str);if(dm&&!/\\.\\d{3}$/.test(str)){var d=dm[1].length,n=parseFloat(str.replace(/\\./g,'').replace(',','.'));v=(n*p).toFixed(d).replace('.',',')}else{var g=/[.,]\\d{3}/.test(str),sep=g?str.match(/[.,]/)[0]:'',n2=parseInt(str.replace(/[.,]/g,''),10);v=String(Math.round(n2*p));if(g)v=v.replace(/\\B(?=(\\d{3})+(?!\\d))/g,sep)}out=out.slice(0,it.i)+v+out.slice(it.i+str.length)}x.t.nodeValue=out})}
@@ -552,6 +553,33 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     if (mo?.loop) attrs.push(`data-fx-loop="${mo.loop.kind}"`);
     if (bgMove) attrs.push('data-bg-move');
     if (n.carousel) attrs.push(`data-carousel="${n.carousel.auto ?? 0}"`, 'role="region"', 'aria-roledescription="Karussell"', `aria-label="${esc(n.name)}"`, 'tabindex="0"');
+    // Eigene Animation: Schlüsselbilder als CSS-Animation
+    if (n.animation) { attrs.push(`data-anim="${n.animation.play}"`); hasMotion = true; }
+    if (isAnimated(n)) {
+      let owner: WNode | undefined = parent;
+      while (owner && !owner.animation) owner = page.nodes[owner.parentId ?? ''];
+      const dur = Math.round((owner ? subtreeDuration(page, owner.id) : subtreeDuration(page, n.id)) * 1000) / 1000;
+      const rn = resolveNode(n, 'desktop');
+      const pl = parent ? resolveNode(parent, 'desktop').layout : null;
+      const baseCss = nodeCss(rn, pl);
+      const frames = sampleTimes(n, dur).map(tt => ({ tt, c: nodeCss(withAnim(rn, tt), pl) }));
+      const keys = new Set<string>();
+      for (const f of frames) for (const k of Object.keys(diff(baseCss, f.c))) if (k !== 'transition') keys.add(k);
+      if (keys.size) {
+        const name = `wa-${cls}`;
+        const kf = frames.map(f => {
+          const c: Css = {};
+          for (const k of keys) c[k] = f.c[k] ?? 'unset';
+          return block(`${Math.round((f.tt / dur) * 100000) / 1000}%`, c, false);
+        }).join('');
+        base.push(`@keyframes ${name}{${kf}}`);
+        const rep = owner?.animation?.repeat ?? 'once';
+        const iter = rep === 'once' ? '1' : rep === 'loop' ? 'infinite' : 'infinite alternate';
+        base.push(block(sel, { animation: `${name} ${dur}s linear ${iter} both` }, pretty));
+        attrs.push('data-wa');
+        hasMotion = true;
+      }
+    }
     if (n.lottie) attrs.push(`data-lottie="${n.lottie.loop ? 'loop' : 'once'} ${n.lottie.play}"`, 'role="img"', `aria-label="${esc(n.name)}"`);
     let tag = n.type === 'image' ? 'img' : 'div';
     let myLink = linkAncestor;
@@ -839,3 +867,11 @@ export function pageFiles(doc: WDocument): Map<string, string> {
   });
   return map;
 }
+
+// ---------- Eigene Animationen (Animations-Editor) ----------
+const ANIM_CSS = `[data-anim]:not(.wa-on) [data-wa]{animation-play-state:paused}
+[data-anim].wa-off [data-wa]{animation:none!important}
+@media (prefers-reduced-motion: reduce){[data-wa]{animation-duration:1ms!important;animation-iteration-count:1!important;animation-direction:normal!important}}`;
+const ANIM_JS = `(function(){var D=document,R=matchMedia('(prefers-reduced-motion: reduce)').matches;[].forEach.call(D.querySelectorAll('[data-anim]'),function(el){var m=el.getAttribute('data-anim'),go=function(){el.classList.add('wa-off');void el.offsetWidth;el.classList.remove('wa-off');el.classList.add('wa-on')};if(R||m==='auto'||!('IntersectionObserver' in window)&&m==='view'){el.classList.add('wa-on');return}if(m==='view'){var io=new IntersectionObserver(function(e){e.forEach(function(x){if(x.isIntersecting){el.classList.add('wa-on');io.disconnect()}})},{threshold:.3});io.observe(el);return}if(m==='hover'){el.addEventListener('mouseenter',go);el.addEventListener('focusin',go);return}if(m==='click'){el.style.cursor='pointer';el.addEventListener('click',go)}})})();`;
+export const MOTION_CSS = MOTION_CSS_BASE + '\n' + ANIM_CSS;
+export const MOTION_JS = MOTION_JS_BASE + '\n' + ANIM_JS;
