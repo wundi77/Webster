@@ -1102,3 +1102,11 @@ body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
 .tl-foot label { display: flex; align-items: center; gap: 6px; }
 .tl-curve { color: var(--text-3); }
 .tl-tip { color: var(--text-3); }
+.anim-chip-l { color: var(--text-3); font-size: 11px; }
+.anim-chip input { width: 42px; padding: 2px 4px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-1); cursor: text; }
+.anim-chip input:hover { border-color: var(--text-3); }
+.anim-chip input:focus { border-color: var(--accent); }
+.anim-card-asset { cursor: grab; }
+.anim-card-asset:active { cursor: grabbing; }
+.anim-card-asset .comp-thumb { position: relative; }
+.anim-badge { position: absolute; right: 5px; bottom: 5px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 8px; padding-left: 1px; }

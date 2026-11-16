@@ -7,7 +7,6 @@ import { currentPageHasRoot } from '../model/embed';
 import { uid } from '../model/factory';
 import { NumberField, Section, Seg } from '../ui/controls';
 import { newAnimation, openAnimation } from '../model/anim';
-import { insertInstance } from '../model/library';
 import { allPages } from '../model/pageRules';
 
 const S = () => useEditor.getState();
@@ -191,28 +190,15 @@ export function LottieSection({ node }: { node: WNode }) {
   );
 }
 
-/** Eigene Animationen (im Animations-Editor gebaut) */
-const ownAnims = (doc: ReturnType<typeof S>['doc']) =>
-  (doc.componentPages ?? []).map(p => p.nodes[p.rootIds[0]]).filter(r => r?.animation).map(r => ({ id: r.id, name: r.name }));
 
 function OwnAnimInsert({ hasRoot }: { hasRoot: boolean }) {
-  const list = useEditor(s => JSON.stringify(ownAnims(s.doc)));
-  const items = JSON.parse(list) as { id: string; name: string }[];
   return (
     <>
       <div className="fx-group">Eigene Animation</div>
       <div className="row">
-        <button type="button" className="btn grow" disabled={!hasRoot} onClick={newAnimation} title="Öffnet den Animations-Editor mit Zeitleiste">＋ Neue Animation zeichnen</button>
+        <button type="button" className="btn grow" onClick={newAnimation} title="Öffnet den Animations-Editor mit Zeitleiste">＋ Neue Animation zeichnen</button>
       </div>
-      {items.length > 0 && (
-        <div className="row">
-          <select className="select grow" aria-label="Eigene Animation einfügen" value="" disabled={!hasRoot} onChange={e => e.target.value && insertInstance(e.target.value)}>
-            <option value="">Eigene einfügen …</option>
-            {items.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </div>
-      )}
-      <p className="proto-hint">Animierte Icons, Grafiken oder Diagramme selbst zeichnen und mit Zuständen oder einer Zeitleiste bewegen. Jede Animation lässt sich mehrfach einbauen und später weiter bearbeiten.</p>
+      <p className="proto-hint">Animierte Icons, Grafiken oder Diagramme selbst zeichnen und mit Zuständen oder einer Zeitleiste bewegen. Fertige Animationen findest du links unter „Assets → Komponenten (Animationen)“ – von dort auf die Fläche ziehen.</p>
     </>
   );
 }

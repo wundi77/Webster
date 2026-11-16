@@ -17,6 +17,7 @@ import { rgba } from '../model/css';
 import { Icons } from '../ui/icons';
 import { ColorField, IconButton, MOD, NumberField, SHIFT } from '../ui/controls';
 import { askConfirm } from '../ui/ConfirmDialog';
+import { newAnimation, openAnimation } from '../model/anim';
 
 export const ASSET_MIME = 'application/x-webster-asset';
 
@@ -30,6 +31,7 @@ export function AssetsPanel() {
   return (
     <>
       <ComponentsGroup doc={doc} />
+      <AnimationsGroup doc={doc} />
       <ColorsGroup doc={doc} />
       <GradientsGroup doc={doc} />
       <TextStylesGroup doc={doc} />
@@ -66,7 +68,7 @@ function Rename({ value, onDone }: { value: string; onDone: (v: string | null) =
 // ---------- Komponenten ----------
 
 function ComponentsGroup({ doc }: { doc: WDocument }) {
-  const comps = useMemo(() => listComponents(doc), [doc]);
+  const comps = useMemo(() => listComponents(doc).filter(c => !isAnimComp(doc, c.id)), [doc]);
   const hasSel = useEditor(s => s.selection.length > 0);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [pick, setPick] = useState<Record<string, string>>({});
@@ -110,6 +112,51 @@ function ComponentsGroup({ doc }: { doc: WDocument }) {
             );
           })}
         </div>
+      )}
+    </Group>
+  );
+}
+
+// ---------- Komponenten (Animationen) ----------
+
+const isAnimComp = (doc: WDocument, id: string) => !!(doc.componentPages ?? []).some(p => p.nodes[id]?.isMain && p.nodes[id]?.animation);
+
+function AnimationsGroup({ doc }: { doc: WDocument }) {
+  const anims = useMemo(() => listComponents(doc).filter(c => isAnimComp(doc, c.id)), [doc]);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  return (
+    <Group title="Komponenten (Animationen)" count={anims.length}
+      actions={<IconButton icon={<Icons.plus />} title="Neue Animation zeichnen (öffnet den Animations-Editor)" onClick={newAnimation} />}>
+      {!anims.length ? (
+        <p className="hint">Eigene Animationen, z. B. animierte Icons oder Diagramme. Mit „+“ legst du eine neue an und zeichnest sie im Animations-Editor. Danach ziehst du sie von hier auf die Fläche – so oft du willst. Änderungen an der Animation gelten überall.</p>
+      ) : (
+        <>
+          <div className="comp-grid">
+            {anims.map(c => {
+              const page = allPages(doc).find(p => p.id === c.pageId)!;
+              const count = instanceCount(doc, c.id);
+              return (
+                <div key={c.id} className="comp-card anim-card-asset" draggable onDragStart={dragAsset('component', c.id)}
+                  title={`${c.name} – auf die Fläche ziehen, um sie einzubauen (${count === 1 ? '1 Stelle' : `${count} Stellen`}). Doppelklick: bearbeiten`}
+                  onDoubleClick={() => openAnimation(c.id)}>
+                  <div className="comp-thumb"><Thumb page={page} doc={doc} id={c.id} box={104} /><span className="anim-badge" aria-hidden>▶</span></div>
+                  <div className="comp-foot">
+                    {renaming === c.id
+                      ? <Rename value={c.name} onDone={v => { if (v) renameComponent(c.id, v); setRenaming(null); }} />
+                      : <span className="comp-name">{c.name}</span>}
+                  </div>
+                  <div className="card-actions" onClick={e => e.stopPropagation()}>
+                    <IconButton icon={<Icons.edit />} title="Animation bearbeiten (öffnet den Animations-Editor)" onClick={() => openAnimation(c.id)} />
+                    <IconButton icon={<Icons.text />} title="Umbenennen" onClick={() => setRenaming(c.id)} />
+                    <IconButton icon={<Icons.trash />} title="Animation löschen"
+                      onClick={async () => { if (await askConfirm({ title: `Animation „${c.name}“ löschen?`, message: count ? `Die ${count === 1 ? 'eingebaute Stelle bleibt' : `${count} eingebauten Stellen bleiben`} als normale Ebenen (ohne Bewegung) erhalten. Rückgängig mit ⌘Z.` : 'Rückgängig mit ⌘Z.', confirmLabel: 'Löschen', danger: true })) unmakeComponent(c.id); }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="hint">Zum Einbauen auf die Fläche ziehen. Doppelklick öffnet den Animations-Editor.</p>
+        </>
       )}
     </Group>
   );

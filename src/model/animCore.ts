@@ -236,3 +236,24 @@ export function sampleTimes(n: WNode, dur: number): number[] {
   return [...ts].filter(t => t >= 0 && t <= dur + 1e-6).map(t => Math.round(t * 10000) / 10000).sort((a, b) => a - b)
     .filter((t, i, a) => i === 0 || t - a[i - 1] > 1e-4);
 }
+
+// ---------- Eingebaute Animation = ein geschlossenes Element ----------
+
+/** Kopie einer eigenen Animation auf einer Seite (ihr oberstes Board) */
+export const isAnimInstance = (n: WNode | undefined): boolean =>
+  !!n && !n.isMain && !!n.componentId && n.componentId === n.mainId && !!n.animation;
+
+/** Oberste eingebaute Animation, in der eine Ebene steckt (oder die Ebene selbst) */
+export function animInstanceOf(page: Page, id: string): string | null {
+  let found: string | null = null;
+  for (let n: WNode | undefined = page.nodes[id]; n; n = n.parentId ? page.nodes[n.parentId] : undefined) if (isAnimInstance(n)) found = n.id;
+  return found;
+}
+
+/** Ursprüngliche Größe einer Animation (ihr Board im Animations-Editor) */
+export function animDesignSize(doc: WDocument, n: WNode): { w: number; h: number } | null {
+  const cid = n.componentId;
+  if (!cid) return null;
+  for (const p of doc.componentPages ?? []) { const m = p.nodes[cid]; if (m?.animation) return { w: m.w, h: m.h }; }
+  return null;
+}

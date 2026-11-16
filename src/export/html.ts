@@ -9,7 +9,7 @@ import { BREAKPOINTS } from '../model/factory';
 import { EMBED_INFO, embedOpenUrl, embedSrc } from '../model/embedCore';
 import { VECTOR_PAINT_CSS, vectorSvg } from '../model/vectorCore';
 import { LOTTIE_PLAYER } from './lottiePlayer';
-import { isAnimated, sampleTimes, subtreeDuration, withAnim } from '../model/animCore';
+import { animDesignSize, isAnimated, isAnimInstance, sampleTimes, subtreeDuration, withAnim } from '../model/animCore';
 
 type Css = Record<string, string>;
 
@@ -707,6 +707,16 @@ export function renderPageParts(ctx: PageCtx): PageParts {
       attrs.push('data-nav-links');
     }
     let kids = n.children.map(c => el(c, n, myLink, depth + 1)).join('');
+    // Eingebaute Animation: Inhalt in Originalgröße, als Ganzes passend skaliert (je Gerät)
+    const design = isAnimInstance(n) ? animDesignSize(doc, n) : null;
+    if (design && kids) {
+      const scls = `${cls}-s`;
+      const kOf = (bp: Breakpoint) => Math.round((resolveNode(n, bp).w / Math.max(1, design.w)) * 10000) / 10000;
+      base.push(block(`${pre}.${scls}`, { position: 'absolute', left: '0', top: '0', width: px(design.w), height: px(design.h), 'transform-origin': '0 0', transform: `scale(${kOf('desktop')})` }, pretty));
+      if (kOf('tablet') !== kOf('desktop')) media.tablet.push(block(`${pre}.${scls}`, { transform: `scale(${kOf('tablet')})` }, pretty, '  '));
+      if (kOf('mobile') !== kOf('tablet')) media.mobile.push(block(`${pre}.${scls}`, { transform: `scale(${kOf('mobile')})` }, pretty, '  '));
+      kids = `<div class="${scls}">${kids}</div>`;
+    }
     // Video als Hintergrund: läuft stumm und endlos hinter dem Inhalt
     const vsrc = vf?.videoRef ? (ctx.asset ? ctx.asset('video', vf.videoRef) : doc.library.videos.find(x => x.id === vf.videoRef)?.src ?? '') : '';
     if (n.carousel && kids) {

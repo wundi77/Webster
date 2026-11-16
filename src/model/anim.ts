@@ -1,7 +1,7 @@
 // Eigene Animationen: Befehle (Anlegen, Zustände, Schlüsselbilder, Abspielen)
 import { useEditor, pageOf } from '../store';
 import { createNode, createPage, makeFill, uid } from './factory';
-import { insertInstance, openComponent } from './library';
+import { openComponent } from './library';
 import { animDuration, animRootOf, ANIM_PROPS, baseValue, easeAt, putKey, setAnimTime, setBase, useAnimClock, valueAt, withoutRecording } from './animCore';
 import type { AnimEase, AnimKey, AnimProp, AnimSettings, Page, WNode } from './types';
 
@@ -68,7 +68,6 @@ export function newAnimation() {
   page.nodes[ball.id] = ball;
   page.rootIds = [board.id];
   s.mutate((_, d) => { (d.componentPages ??= []).push(page); }, { system: true });
-  insertInstance(board.id);
   openAnimation(board.id);
 }
 

@@ -1,3 +1,4 @@
+import { isAnimInstance } from '../model/animCore';
 import { PageSeoFields, SiteFields, useDialog } from './SiteSettings';
 import { NavInsertSection, NavSection } from './NavSection';
 import { RegionSection } from './RegionSection';
@@ -111,7 +112,7 @@ function DesignTab() {
       <AlignBar count={nodes.length} />
       <MeasuresSection nodes={nodes} parents={parents} upd={upd} />
       {allInLayoutParent && <LayoutItemSection nodes={nodes} parents={layoutParents} upd={upd} />}
-      {only('board') && nodes.length === 1
+      {nodes.some(isAnimInstance) ? null : only('board') && nodes.length === 1
         ? <ArrangeSection node={nodes[0]} advanced={<LayoutSection nodes={nodes} upd={upd} />} />
         : (only('board') || only('rect')) && <LayoutSection nodes={nodes} upd={upd} />}
       {only('board') && <BoardSection nodes={nodes} upd={upd} />}
@@ -235,8 +236,17 @@ function MeasuresSection({ nodes, parents, upd }: { nodes: WNode[]; parents: (WN
       <div className="row">
         <span className="lbl">{word}</span>
         <NumberField title={`${word} in px`} value={val} min={1}
-          onChange={v => upd(n => { if (axis === 'h') { n.w = v; n.sizingH = 'fixed'; } else { n.h = v; n.sizingV = 'fixed'; } }, axis === 'h' ? 'w' : 'h')} />
-        {(canFill || canAuto) && (
+          onChange={v => upd(n => {
+            // Eingebaute Animation: Breite und Höhe ändern sich immer zusammen
+            if (isAnimInstance(n) && n.w > 0 && n.h > 0) {
+              const r = n.h / n.w;
+              if (axis === 'h') { n.w = v; n.h = Math.max(1, Math.round(v * r)); } else { n.h = v; n.w = Math.max(1, Math.round(v / r)); }
+              n.sizingH = 'fixed'; n.sizingV = 'fixed';
+              return;
+            }
+            if (axis === 'h') { n.w = v; n.sizingH = 'fixed'; } else { n.h = v; n.sizingV = 'fixed'; }
+          }, axis === 'h' ? 'w' : 'h')} />
+        {(canFill || canAuto) && !nodes.some(isAnimInstance) && (
           <select className="select size-mode" aria-label={`${word}: Verhalten`} value={mode ?? ''} onChange={e => setSizing(axis, e.target.value as Sizing)}>
             {mode === undefined && <option value="" disabled>Gemischt</option>}
             <option value="fixed">Fest</option>

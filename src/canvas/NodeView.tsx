@@ -9,7 +9,7 @@ import { ensureFont } from '../model/fonts';
 import { deleteNodes, setText } from '../model/commands';
 import { resolveNode } from '../model/resolve';
 import { withHover, withScrolled } from '../model/hover';
-import { isAnimPage, withAnim } from '../model/animCore';
+import { animDesignSize, isAnimInstance, isAnimPage, withAnim } from '../model/animCore';
 import { navCollapsed, navOwner } from '../model/nav';
 import { EMBED_INFO, embedSrc } from '../model/embedCore';
 import { vectorSvg } from '../model/vectorCore';
@@ -54,6 +54,8 @@ export const NodeView = memo(function NodeView({ id, parentLayout }: { id: strin
   const isCar = !!node?.carousel;
   const selSlide = useEditor(s => (isCar ? slideOf(pageOf(s), id, s.selection[0]) : -1));
   const uiSlide = useSlides(s => (isCar ? s[id] ?? 0 : 0));
+  // Eingebaute Animation: Inhalt in Originalgröße zeichnen und als Ganzes verkleinern/vergrößern
+  const design = useEditor(s => { if (!node || !isAnimInstance(node)) return null; const d = animDesignSize(s.doc, node); return d ? `${d.w}x${d.h}` : null; });
   if (!node) return null;
   const style = toReactStyle(nodeCss(node, parentLayout)) as CSSProperties;
   const cls = node.locked ? 'node locked' : 'node';
@@ -122,7 +124,8 @@ export const NodeView = memo(function NodeView({ id, parentLayout }: { id: strin
     <div className={cls} data-node-id={id} style={style}>
       {bgVideoSrc && <video className="bg-video" src={bgVideoSrc} muted playsInline preload="metadata" aria-hidden="true" />}
       {node.lottie && <LottieStill assetId={node.lottie.ref} />}
-      {node.children.map((c, i) => (shown < 0 || i === shown) && <NodeView key={c} id={c} parentLayout={childLayout} />)}
+      {design ? <AnimScale design={design} w={node.w}>{node.children.map(c => <NodeView key={c} id={c} parentLayout={childLayout} />)}</AnimScale>
+        : node.children.map((c, i) => (shown < 0 || i === shown) && <NodeView key={c} id={c} parentLayout={childLayout} />)}
       {node.compare && <div className="cmp-line" style={{ left: `${node.compare.pos}%` }} />}
       {isCar && node.carousel!.dots && node.children.length > 1 && (
         <div className="car-dots-canvas">{node.children.map((c, i) => <i key={c} className={i === shown ? 'on' : ''} />)}</div>
@@ -130,6 +133,12 @@ export const NodeView = memo(function NodeView({ id, parentLayout }: { id: strin
     </div>
   );
 });
+
+function AnimScale({ design, w, children }: { design: string; w: number; children: React.ReactNode }) {
+  const [dw, dh] = design.split('x').map(Number);
+  const k = dw > 0 ? w / dw : 1;
+  return <div className="anim-scale" style={{ position: 'absolute', left: 0, top: 0, width: dw, height: dh, transform: `scale(${k})`, transformOrigin: '0 0', pointerEvents: 'none' }}>{children}</div>;
+}
 
 function TextNode({ node, style, editing, cls }: { node: WNode; style: CSSProperties; editing: boolean; cls: string }) {
   const ref = useRef<HTMLDivElement>(null);

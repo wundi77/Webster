@@ -1,3 +1,5 @@
+import { animInstanceOf, isAnimInstance } from '../model/animCore';
+import { openAnimation } from '../model/anim';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isPageBoard } from '../model/pageRules';
 import { useEditor, viewPage, pageOf } from '../store';
@@ -68,7 +70,7 @@ function marqueeHits(page: Page, containerId: string | null, r: Rect): string[] 
       const a = absRect(page, i);
       if (!intersects(a, r)) continue;
       const inside = a.x >= r.x && a.y >= r.y && a.x + a.w <= r.x + r.w && a.y + a.h <= r.y + r.h;
-      if (isContainer(n) && !inside) walk(n.children);
+      if (isContainer(n) && !inside && !isAnimInstance(n)) walk(n.children);
       else out.push(i);
     }
   };
@@ -84,6 +86,9 @@ function pickNode(page: Page, target: HTMLElement): string | null {
   if (!el) return null;
   const n = page.nodes[el.dataset.nodeId!];
   if (!n) return null;
+  // Eingebaute Animation: nur als Ganzes auswählbar
+  const anim = animInstanceOf(page, n.id);
+  if (anim) return anim;
   // Oberste Boards mit Inhalt werden über ihren Titel ausgewählt (wie in Penpot)
   if (n.type === 'board' && n.parentId === null && n.children.length > 0) return null;
   return n.id;
@@ -458,7 +463,9 @@ export function Canvas() {
           if (h.includes('s')) y1 = b.y - (y2 - (b.y + b.h));
           if (h.includes('n')) y2 = b.y + b.h - (y1 - b.y);
         }
-        if (e.shiftKey && b.w > 0 && b.h > 0) { // Proportionen beibehalten
+        // Eingebaute Animationen immer nur proportional
+        const keepRatio = e.shiftKey || gs.ids.some(id => isAnimInstance(viewPage(s).nodes[id]));
+        if (keepRatio && b.w > 0 && b.h > 0) { // Proportionen beibehalten
           const ratio = b.w / b.h;
           let w = x2 - x1, hh = y2 - y1;
           if (h === 'e' || h === 'w') { hh = Math.abs(w) / ratio; const cy = b.y + b.h / 2; y1 = cy - hh / 2; y2 = cy + hh / 2; }
@@ -471,7 +478,7 @@ export function Canvas() {
           }
         }
         // bewegte Kanten an Hilfslinien und Spalten einrasten (nicht bei ⇧/⌥)
-        if (!e.shiftKey && !e.altKey) {
+        if (!keepRatio && !e.altKey) {
           const vpg = viewPage(s);
           const lines = snapLines(vpg, [...new Set(gs.ids.flatMap(id => boardChain(vpg, vpg.nodes[id]?.parentId ?? null)))]);
           const th = 6 / s.zoom;
@@ -497,8 +504,8 @@ export function Canvas() {
           setMeasures(gs.ids.some(id => inLayout(viewPage(s), id)) ? [] : measureGaps(nb, mc.others, mc.container));
         }
         const sx = b.w ? nb.w / b.w : 1, sy = b.h ? nb.h / b.h : 1;
-        const widthChanged = h.includes('e') || h.includes('w') || e.shiftKey;
-        const heightChanged = h.includes('n') || h.includes('s') || e.shiftKey;
+        const widthChanged = h.includes('e') || h.includes('w') || keepRatio;
+        const heightChanged = h.includes('n') || h.includes('s') || keepRatio;
         const pg = viewPage(s);
         s.mutate(page => {
           for (const id of gs.ids) {
@@ -623,7 +630,11 @@ export function Canvas() {
     if (s.tool !== 'move' || s.editingTextId) return;
     const title = (e.target as HTMLElement).closest<HTMLElement>('[data-board-title]');
     if (title) { useTitleRename.setState({ id: title.dataset.boardTitle! }); return; }
-    const id = textAt(viewPage(s), e.clientX, e.clientY);
+    // Doppelklick auf eine eingebaute Animation öffnet den Animations-Editor
+    const vp = viewPage(s);
+    const picked = pickNode(vp, e.target as HTMLElement);
+    if (picked && isAnimInstance(vp.nodes[picked])) { openAnimation(vp.nodes[picked].componentId!); return; }
+    const id = textAt(vp, e.clientX, e.clientY);
     if (id) editTextAt(id, e.clientX, e.clientY);
   };
 

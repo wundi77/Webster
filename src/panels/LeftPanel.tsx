@@ -1,3 +1,4 @@
+import { isAnimInstance } from '../model/animCore';
 import { useEffect, useRef, useState } from 'react';
 import { useEditor, viewPage } from '../store';
 import { Icons, TypeIcon } from '../ui/icons';
@@ -234,7 +235,8 @@ function LayersSection() {
       const n = page.nodes[id];
       if (!n) continue;
       rows.push({ id, depth });
-      if (n.children.length && !collapsed.has(id)) walk(n.children, depth + 1, id);
+      // Eingebaute Animation: ein geschlossenes Element, ihr Inhalt wird im Animations-Editor bearbeitet
+      if (n.children.length && !collapsed.has(id) && !isAnimInstance(n)) walk(n.children, depth + 1, id);
     }
   };
   walk(page.rootIds, 0, null);
@@ -297,7 +299,7 @@ function LayersSection() {
           const n = page.nodes[id];
           const vis = scrolledMode ? withScrolled(n).visible : n.visible;
           const sel = selection.includes(id);
-          const hasKids = n.children.length > 0;
+          const hasKids = n.children.length > 0 && !isAnimInstance(n);
           const dropCls = drop?.id === id ? ` drop-${drop.pos}` : '';
           return (
             <div key={id}

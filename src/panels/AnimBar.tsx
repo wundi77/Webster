@@ -115,10 +115,12 @@ function Transition({ id, dur, ease }: { id: string; dur: number; ease: AnimEase
   return (
     <div className="anim-trans">
       <svg width="60" height="10" viewBox="0 0 60 10" aria-hidden><path d="M0 5h54" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 3" /><path d="M53 1l5 4-5 4" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
-      <div className="anim-chip">
+      <div className="anim-chip" title="Wie lange dieser Übergang dauert: kleinere Zahl = schneller">
+        <span className="anim-chip-l">Dauer</span>
         <input aria-label="Dauer in Sekunden" value={txt ?? dur.toFixed(2).replace('.', ',')} onChange={e => setTxt(e.target.value)}
-          onBlur={e => commit(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value); }} />
-        <span>s</span>
+          onFocus={e => e.target.select()} onBlur={e => commit(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const n = Math.max(0.05, dur + (e.key === 'ArrowUp' ? 0.1 : -0.1)); setTransition(id, { dur: n }); setTxt(null); } }} />
+        <span>Sek.</span>
         <select aria-label="Bewegung" value={ease} onChange={e => setTransition(id, { ease: e.target.value as AnimEase })}>
           {EASES.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
