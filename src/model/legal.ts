@@ -16,7 +16,7 @@ export const LEGAL: Record<LegalKind, { name: string; match: RegExp }> = {
 };
 
 export { FOOTER_NAME } from './css';
-import { FOOTER_NAME } from './css';
+import { FOOTER_NAME, isFooter } from './css';
 
 export const findLegalPage = (doc: WDocument, kind: LegalKind) => doc.pages.find(p => LEGAL[kind].match.test(p.name));
 
@@ -111,6 +111,30 @@ export function pagesMissingLink(doc: WDocument, targetId: string): Page[] {
 const BPS: Breakpoint[] = ['desktop', 'tablet', 'mobile'];
 const FOOT_H = 72;
 
+/** Fußzeile unten in das Webseiten-Board einer Seite setzen (h = Höhe ohne Layout) */
+export function placeBottom(pg: Page, foot: WNode, h = FOOT_H) {
+  const root = siteRoot(pg)!;
+  const r = pg.nodes[root.id];
+  foot.parentId = r.id;
+  r.children.push(foot.id);
+  if (r.layout) {
+    foot.absolute = false; foot.sizingH = 'fill'; foot.sizingV = 'auto';
+  } else {
+    foot.sizingV = 'fixed'; foot.h = h;
+    // Ohne Layout: unten anhängen und das Board verlängern – je Bildschirmgröße
+    for (const bp of BPS) {
+      const rb = resolveNode(r, bp);
+      if (bp === 'desktop') { foot.x = 0; foot.y = rb.h; foot.w = rb.w; foot.sizingH = 'fixed'; }
+      else {
+        foot.overrides ??= {};
+        foot.overrides[bp] = { ...foot.overrides[bp], x: 0, y: rb.h, w: BREAKPOINTS.find(b => b.id === bp)!.width ?? rb.w };
+      }
+    }
+    r.h += h;
+    for (const bp of ['tablet', 'mobile'] as const) if (r.overrides?.[bp]?.h !== undefined) r.overrides[bp]!.h = (r.overrides[bp]!.h as number) + h;
+  }
+}
+
 /** Fußzeile mit © und Links zu Impressum/Datenschutz – auf allen Seiten (als Komponente) */
 export function addLegalFooter(): number {
   const s = useEditor.getState();
@@ -123,7 +147,7 @@ export function addLegalFooter(): number {
   const owner = doc.site?.name || doc.name;
 
   // Bestehende Fußzeile (Hauptkomponente) wiederverwenden
-  let mainPage = allPages(doc).find(p => Object.values(p.nodes).some(n => n.isMain && n.name === FOOTER_NAME));
+  const mainPage = allPages(doc).find(p => Object.values(p.nodes).some(n => n.isMain && isFooter(n)));
   let count = 0;
   // Nur Seiten, auf denen noch ein Link fehlt (keine doppelten Fußzeilen)
   const need = new Set([imp, ds].filter(Boolean).flatMap(t => pagesMissingLink(doc, t!.id).map(p => p.id)));
@@ -131,34 +155,28 @@ export function addLegalFooter(): number {
   s.mutate((_, d) => {
     const targets = d.pages.filter(p => siteRoot(p) && need.has(p.id));
     if (!targets.length) return;
-    let mainId: string | null = mainPage ? Object.values(allPages(d).find(p => p.id === mainPage!.id)!.nodes).find(n => n.isMain && n.name === FOOTER_NAME)!.id : null;
+    let mainId: string | null = mainPage ? Object.values(allPages(d).find(p => p.id === mainPage!.id)!.nodes).find(n => n.isMain && isFooter(n))!.id : null;
     let pm = mainPage ? allPages(d).find(p => p.id === mainPage!.id)! : null;
-
-    const place = (pg: Page, foot: WNode) => {
-      const root = siteRoot(pg)!;
-      const r = pg.nodes[root.id];
-      foot.parentId = r.id;
-      r.children.push(foot.id);
-      if (r.layout) {
-        foot.absolute = false; foot.sizingH = 'fill'; foot.sizingV = 'auto';
-      } else {
-        foot.sizingV = 'fixed'; foot.h = FOOT_H;
-        // Ohne Layout: unten anhängen und das Board verlängern – je Bildschirmgröße
-        for (const bp of BPS) {
-          const rb = resolveNode(r, bp);
-          if (bp === 'desktop') { foot.x = 0; foot.y = rb.h; foot.w = rb.w; foot.sizingH = 'fixed'; }
-          else {
-            foot.overrides ??= {};
-            foot.overrides[bp] = { ...foot.overrides[bp], x: 0, y: rb.h, w: BREAKPOINTS.find(b => b.id === bp)!.width ?? rb.w };
-          }
-        }
-        r.h += FOOT_H;
-        for (const bp of ['tablet', 'mobile'] as const) if (r.overrides?.[bp]?.h !== undefined) r.overrides[bp]!.h = (r.overrides[bp]!.h as number) + FOOT_H;
+    // Eigene Fußzeile vorhanden: fehlende Links dort ergänzen (gilt dann auf allen Seiten mit der Fußzeile)
+    if (pm && mainId) {
+      const foot = pm.nodes[mainId];
+      const inMain = (pid: string) => { const walk = (id: string): boolean => { const n = pm!.nodes[id]; return !!n && ((n.link?.type === 'page' && n.link.pageId === pid) || n.children.some(walk)); }; return walk(mainId!); };
+      const last = [...foot.children].reverse().map(c => pm!.nodes[c]).find(n => n?.type === 'text');
+      for (const [t, label] of [[imp, 'Impressum'], [ds, 'Datenschutz']] as const) {
+        if (!t || inMain(t.id)) continue;
+        const n = createNode('text', {
+          ...(last ? { textStyle: last.textStyle, fills: last.fills, textStyleRef: last.textStyleRef, hover: last.hover } : { fills: [makeFill('#555555')], textStyle: { ...defaultTextStyle(), fontFamily: font, fontSize: 14 } }),
+          name: label, text: label, parentId: foot.id, link: { type: 'page', pageId: t.id },
+          x: foot.layout ? 0 : Math.max(0, foot.w - 140), y: foot.layout ? 0 : Math.max(0, foot.h / 2 - 10),
+        });
+        pm.nodes[n.id] = n;
+        foot.children.push(n.id);
+        count++;
       }
-    };
+    }
 
     for (const pg of targets) {
-      const has = Object.values(pg.nodes).some(n => (n.isMain && n.name === FOOTER_NAME) || (n.componentId && n.componentId === mainId));
+      const has = Object.values(pg.nodes).some(n => isFooter(n) || (n.componentId && n.componentId === mainId));
       if (has) continue;
       if (!mainId) {
         // Original auf eigenem Komponenten-Board anlegen
@@ -190,7 +208,7 @@ export function addLegalFooter(): number {
       {
         const id = cloneFromMain(pg, pm!, mainId, null, true);
         const inst = pg.nodes[id];
-        place(pg, inst);
+        placeBottom(pg, inst);
         // Breite/Größenverhalten hängen vom Board der jeweiligen Seite ab
         inst.touched = ['sizingH', 'sizingV', 'h', 'absolute', 'w', 'tablet.w', 'mobile.w'];
       }

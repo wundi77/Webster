@@ -1,8 +1,9 @@
 // Erzeugt aus einer Seite echtes HTML + CSS – für die Live-Vorschau und den Export.
 import type { Breakpoint, Page, WDocument, WNode } from '../model/types';
 import { CODE_SANDBOX, codeSrcdoc } from '../model/code';
-import { effectiveSizing, nodeCss, rgba, slug } from '../model/css';
+import { effectiveSizing, isFooter, isHeader, nodeCss, rgba, slug } from '../model/css';
 import { resolveNode } from '../model/resolve';
+import { textTagOf } from '../model/headings';
 import { fontHrefFor, type FontUse } from '../model/fonts';
 import { BREAKPOINTS } from '../model/factory';
 import { EMBED_INFO, embedOpenUrl, embedSrc } from '../model/embedCore';
@@ -74,6 +75,8 @@ html { scroll-behavior: smooth; }
 body { margin: 0; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 a { color: inherit; text-decoration: none; cursor: pointer; }
 img { display: block; }
+h1, h2, h3, h4, p { margin: 0; font: inherit; }
+.wh { margin: 0; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; text-decoration: inherit; white-space: inherit; text-align: inherit; }
 [data-reveal] { opacity: 0; }
 [data-reveal="up"] { translate: 0 40px; }
 [data-reveal="left"] { translate: -40px 0; }
@@ -95,9 +98,10 @@ export const NAV_CSS = `.nav-toggle { display: none; position: relative; z-index
 .nav-open .nav-toggle span:nth-child(2) { opacity: 0; }
 .nav-open .nav-toggle span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 body.nav-open { overflow: hidden; }
-@media (prefers-reduced-motion: reduce) { .nav-toggle span { transition: none; } }`;
+@keyframes nav-drop { from { opacity: 0; transform: translateY(-8px); } }
+@media (prefers-reduced-motion: reduce) { .nav-toggle span { transition: none; } [data-nav-links] { animation: none !important; } }`;
 
-export const NAV_JS = `(function(){document.querySelectorAll('.nav-toggle').forEach(function(b){var m=document.getElementById(b.getAttribute('aria-controls'));function set(o){document.body.classList.toggle('nav-open',o);b.setAttribute('aria-expanded',o?'true':'false');b.setAttribute('aria-label',o?'Menü schließen':'Menü öffnen')}b.addEventListener('click',function(){set(!document.body.classList.contains('nav-open'))});if(m)m.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('a'))set(false)});document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});window.addEventListener('resize',function(){if(getComputedStyle(b).display==='none')set(false)})})})();`;
+export const NAV_JS = `(function(){document.querySelectorAll('.nav-toggle').forEach(function(b){var m=document.getElementById(b.getAttribute('aria-controls'));function set(o){if(o&&m){var h=b.closest('header')||b.parentElement;m.style.setProperty('--nav-top',Math.max(0,h.getBoundingClientRect().bottom)+'px')}document.body.classList.toggle('nav-open',o);b.setAttribute('aria-expanded',o?'true':'false');b.setAttribute('aria-label',o?'Menü schließen':'Menü öffnen')}b.addEventListener('click',function(){set(!document.body.classList.contains('nav-open'))});if(m)m.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('a'))set(false)});document.addEventListener('click',function(e){if(document.body.classList.contains('nav-open')&&m&&!m.contains(e.target)&&!b.contains(e.target))set(false)});document.addEventListener('keydown',function(e){if(e.key==='Escape')set(false)});window.addEventListener('resize',function(){if(getComputedStyle(b).display==='none')set(false)})})})();`;
 
 export const FORM_CSS = `:where(form[data-to] input, form[data-to] textarea, form[data-to] button) { border: 0; margin: 0; font: inherit; color: inherit; background: none; -webkit-appearance: none; appearance: none; }
 :where(form[data-to] textarea) { resize: vertical; }
@@ -169,6 +173,12 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     while (n) { if (n.nav) return n; n = page.nodes[n.parentId ?? '']; }
     return undefined;
   };
+  /** Eltern einer Ebene bis unter das Webseiten-Board */
+  const ancestorsOf = (id: string): string[] => {
+    const out: string[] = [];
+    for (let a = page.nodes[page.nodes[id]?.parentId ?? '']; a && a.id !== root.id; a = page.nodes[a.parentId ?? '']) out.push(a.id);
+    return out;
+  };
   const fonts: FontUse[] = [];
   const addFont = (ts: WNode['textStyle']) => { if (ts) fonts.push({ family: ts.fontFamily, weight: ts.fontWeight, italic: ts.italic }); };
 
@@ -195,6 +205,26 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     };
     walk(root, cw);
   }
+  // Vollbild: Bereich so hoch wie das Fenster (svh = ohne die ein-/ausfahrende Browserleiste auf dem Handy)
+  const fullscreenCss = (n: WNode, parent: WNode | undefined, c: Css): Css => {
+    const fs = n.fullscreen;
+    if (fs && n.id !== root.id) {
+      const off = Math.max(0, Math.round(fs.offset || 0));
+      delete c.height;
+      c['min-height'] = off ? `calc(100svh - ${off}px)` : '100svh';
+      if (fs.stay && c.position === 'relative' && parent?.layout?.type === 'flex' && parent.layout.direction === 'column') {
+        c.position = 'sticky'; c.top = `${off}px`; c['z-index'] = '0';
+      }
+    }
+    // Was nach einem stehenden Vollbild-Bereich kommt, schiebt sich darüber
+    if (parent && !fs?.stay && c.position === 'relative' && c['z-index'] === undefined) {
+      const sib = parent.children.map(id => page.nodes[id]);
+      const i = sib.findIndex(x => x?.id === n.id);
+      if (sib.slice(0, i).some(x => x?.fullscreen?.stay)) c['z-index'] = '1';
+    }
+    return c;
+  };
+
   // Anteil des freien Platzes, der links liegt: links 0, mittig ½, rechts 1
   const share = root.contentAlign === 'left' ? 0 : root.contentAlign === 'right' ? 1 : 0.5;
   /** Freier Platz neben dem Inhalt (links bzw. rechts), wenn der Behälter breiter ist als w */
@@ -207,7 +237,7 @@ export function renderPageParts(ctx: PageCtx): PageParts {
   const plus = (base: string, extra: string | null) => (extra ? `calc(${base} + ${extra})` : base);
 
   const cssFor = (n: WNode, bp: Breakpoint, parent: WNode | undefined): Css => {
-    const c = cssForBase(n, bp, parent);
+    const c = fullscreenCss(n, parent, cssForBase(n, bp, parent));
     if (!cw) return c;
     const pAvail = parent ? bands.get(parent.id) : undefined;
     // Frei platzierte Ebenen in einem Band rücken um den freien Rand
@@ -267,7 +297,7 @@ export function renderPageParts(ctx: PageCtx): PageParts {
         else c.left = px(ax);
         if (pin.v === 'bottom') c.bottom = px(pin.bottom); else c.top = px(ay);
       }
-      c['z-index'] = n.nav ? '50' : '60';
+      c['z-index'] = isHeader(n) ? '50' : '60';
     }
     return c;
   };
@@ -435,6 +465,12 @@ export function renderPageParts(ctx: PageCtx): PageParts {
         myLink = n.id;
       }
     }
+    // Bedeutung für Suchmaschinen und Screenreader: Kopfzeile, Menü, Fußzeile
+    if (tag === 'div' && n.type === 'board' && n.id !== root.id) {
+      if (n.navLinks && navOwnerOf(n.id)) tag = 'nav';
+      else if (isHeader(n)) tag = 'header';
+      else if (isFooter(n)) tag = 'footer';
+    }
 
     const pad = pretty ? '\n' + '  '.repeat(depth) : '';
     if (n.type === 'image') {
@@ -443,7 +479,13 @@ export function renderPageParts(ctx: PageCtx): PageParts {
       if (tag === 'img') return `${pad}<img ${attrs.join(' ')} src="${src}" alt="${esc(n.name)}" style="object-fit:${fit}" loading="lazy">`;
       return `${pad}<a ${attrs.join(' ')}><img src="${src}" alt="${esc(n.name)}" style="width:100%;height:100%;object-fit:${fit}" loading="lazy"></a>`;
     }
-    if (n.type === 'text') return `${pad}<${tag} ${attrs.join(' ')}>${esc(n.text ?? '')}</${tag}>`;
+    if (n.type === 'text') {
+      // Überschrift/Absatz: eigene HTML-Art; als Link steckt die Überschrift im Link
+      const tt = textTagOf(doc, n);
+      if (tag === 'div' && tt && tt !== 'div') tag = tt;
+      else if (tag === 'a' && tt && tt !== 'div' && tt !== 'p') return `${pad}<a ${attrs.join(' ')}><${tt} class="wh">${esc(n.text ?? '')}</${tt}></a>`;
+      return `${pad}<${tag} ${attrs.join(' ')}>${esc(n.text ?? '')}</${tag}>`;
+    }
     if (n.type === 'vector') {
       // Icon ohne Text als Link: Ebenenname als Beschriftung für Screenreader
       if (tag === 'a') attrs.push(`aria-label="${esc(n.name)}"`);
@@ -468,12 +510,26 @@ export function renderPageParts(ctx: PageCtx): PageParts {
       navRules.push(`@media (max-width: ${max}px) {${nl}${[
         block(`${pre}.${cls}`, { display: 'none' }, pretty, ind),
         block(`${pre}.${tcls}`, { display: 'flex', color: nav.iconColor }, pretty, ind),
-        block(open, {
-          display: 'flex', position: 'fixed', inset: '0', 'z-index': '1000', 'flex-direction': 'column', 'flex-wrap': 'nowrap',
-          'align-items': 'center', 'justify-content': 'center', gap: '28px', padding: '96px 24px', width: 'auto', height: 'auto',
-          'max-width': 'none', margin: '0', background: nav.overlayBg, 'overflow-y': 'auto', transform: 'none',
-        }, pretty, ind),
-        block(`${open} > *`, { position: 'relative', left: 'auto', top: 'auto', transform: 'none', 'font-size': '28px', color: nav.overlayText }, pretty, ind),
+        // Geöffnet: die Kopfzeile (samt Eltern) nach ganz vorn – vor fixierte Störer & Co.
+        ...ancestorsOf(n.id).map(a => block(ctx.scope ? `body.nav-open${ctx.scope} .${ctx.cls(a)}` : `body.nav-open .${ctx.cls(a)}`, { 'z-index': '1000' }, pretty, ind)),
+        ...(nav.open === 'drop' ? [
+          // Klappt unter der Kopfzeile herunter (Oberkante setzt das Skript beim Öffnen)
+          block(open, {
+            display: 'flex', position: 'fixed', top: 'var(--nav-top, 64px)', left: '0', right: '0', bottom: 'auto', 'z-index': '1000',
+            'flex-direction': 'column', 'flex-wrap': 'nowrap', 'align-items': 'stretch', 'justify-content': 'flex-start', gap: '0',
+            padding: '8px 24px 16px', width: 'auto', height: 'auto', 'max-width': 'none', 'max-height': 'calc(100vh - var(--nav-top, 64px))',
+            margin: '0', background: nav.overlayBg, 'overflow-y': 'auto', transform: 'none', 'box-shadow': '0 12px 24px rgba(0,0,0,.12)',
+            animation: 'nav-drop .2s ease',
+          }, pretty, ind),
+          block(`${open} > *`, { position: 'relative', left: 'auto', top: 'auto', transform: 'none', width: 'auto', 'font-size': '18px', padding: '12px 0', color: nav.overlayText }, pretty, ind),
+        ] : [
+          block(open, {
+            display: 'flex', position: 'fixed', inset: '0', 'z-index': '1000', 'flex-direction': 'column', 'flex-wrap': 'nowrap',
+            'align-items': 'center', 'justify-content': 'center', gap: '28px', padding: '96px 24px', width: 'auto', height: 'auto',
+            'max-width': 'none', margin: '0', background: nav.overlayBg, 'overflow-y': 'auto', transform: 'none',
+          }, pretty, ind),
+          block(`${open} > *`, { position: 'relative', left: 'auto', top: 'auto', transform: 'none', 'font-size': '28px', color: nav.overlayText }, pretty, ind),
+        ]),
       ].join(nl)}${nl}}`);
     }
     return out;

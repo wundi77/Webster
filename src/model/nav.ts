@@ -11,7 +11,8 @@ import { useEditor } from '../store';
 
 export const HEADER_NAME = 'Kopfleiste';
 export const LINKS_NAME = 'Menü';
-const HEAD_H = 80;
+const HEAD_DEFAULT = 80;
+const HEAD_H = HEAD_DEFAULT;
 const BPS: Breakpoint[] = ['desktop', 'tablet', 'mobile'];
 
 export const defaultNav = (): NavSettings => ({
@@ -30,7 +31,7 @@ export function navOwner(page: Page, linksId: string): WNode | undefined {
 }
 
 const findMain = (doc: WDocument) => {
-  for (const p of allPages(doc)) for (const id in p.nodes) if (p.nodes[id].isMain && p.nodes[id].nav) return { page: p, node: p.nodes[id] };
+  for (const p of allPages(doc)) for (const id in p.nodes) if (p.nodes[id].isMain && p.nodes[id].nav && !p.nodes[id].role) return { page: p, node: p.nodes[id] };
   return null;
 };
 
@@ -55,7 +56,7 @@ function linkText(pg: Page, parent: WNode, font: string, label: string, pageId: 
 }
 
 /** Kopfleiste oben in das Webseiten-Board einer Seite setzen */
-function placeTop(pg: Page, head: WNode) {
+export function placeTop(pg: Page, head: WNode, HEAD_H = HEAD_DEFAULT) {
   const r = pg.nodes[siteRoot(pg)!.id];
   head.parentId = r.id;
   if (r.layout) {
@@ -97,6 +98,8 @@ export function insertHeader(): { pages: number; links: number } {
   const font = mainFont(doc);
   const existing = findMain(doc);
   const res = { pages: 0, links: 0 };
+  // Eigene Kopfzeile festgelegt: keine fertige Kopfleiste dazubauen
+  if (!existing && ownHeader(doc)) return res;
 
   s.mutate((_, d) => {
     let pm: Page | undefined, mainId: string | undefined;
@@ -160,6 +163,12 @@ export function insertHeader(): { pages: number; links: number } {
     }
   });
   return res;
+}
+
+/** Eigene, als Kopfzeile festgelegte Komponente */
+export function ownHeader(doc: WDocument): WNode | undefined {
+  for (const p of allPages(doc)) for (const id in p.nodes) if (p.nodes[id].isMain && p.nodes[id].role === 'header') return p.nodes[id];
+  return undefined;
 }
 
 /** Gibt es schon eine Kopfleiste? */

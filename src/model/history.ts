@@ -5,7 +5,7 @@ import { PROP_NAMES } from './resolve';
 const cache = new WeakMap<WDocument, string>();
 
 const EXTRA: Record<string, string> = {
-  text: 'Text', name: 'Name', link: 'Link', hover: 'Hover', hoverDuration: 'Hover-Dauer', pin: 'Fixieren', scrolled: 'Nach dem Scrollen', scrollAt: 'Umschalten ab', scrollDuration: 'Scroll-Übergang', contentWidth: 'Inhaltsbreite', contentAlign: 'Inhalt ausrichten', reveal: 'Einblenden', nav: 'Menü',
+  text: 'Text', name: 'Name', link: 'Link', hover: 'Hover', hoverDuration: 'Hover-Dauer', pin: 'Fixieren', scrolled: 'Nach dem Scrollen', scrollAt: 'Umschalten ab', scrollDuration: 'Scroll-Übergang', contentWidth: 'Inhaltsbreite', fullscreen: 'Vollbild', role: 'Kopf-/Fußzeile', textTag: 'Art des Textes', contentAlign: 'Inhalt ausrichten', reveal: 'Einblenden', nav: 'Menü',
   navLinks: 'Menüpunkte', form: 'Formular', embed: 'Video/Karte', vector: 'Form', guides: 'Hilfslinien', imageRef: 'Bild', locked: 'Sperre',
   textStyleRef: 'Textstil', overrides: 'Breakpoint-Abweichung', touched: 'Abweichung', layout: 'Layout',
 };

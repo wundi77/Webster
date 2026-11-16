@@ -95,7 +95,7 @@ export function cloneFromMain(pg: Page, pm: Page, mId: string, parentId: string 
   return id;
 }
 
-function removeSubtree(pg: Page, id: string) {
+export function removeSubtree(pg: Page, id: string) {
   const n = pg.nodes[id];
   if (!n) return;
   n.children.forEach(c => removeSubtree(pg, c));

@@ -1,5 +1,7 @@
 import { PageSeoFields, SiteFields, useDialog } from './SiteSettings';
 import { NavInsertSection, NavSection } from './NavSection';
+import { RegionSection } from './RegionSection';
+import { ArrangeSection } from './ArrangeSection';
 import { FormInsertSection, FormSection } from './FormSection';
 import { EmbedInsertSection, EmbedSection } from './EmbedSection';
 import { CodeBlockSection, CodeInsertSection, CustomCssField, SiteCodeSection } from './CodeSection';
@@ -9,13 +11,14 @@ import { useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditor, viewPage, pageOf } from '../store';
 import { allPages, isPageBoard, pageBoard } from '../model/pageRules';
+import { TEXT_TAGS, styleTag, textsWithTag } from '../model/headings';
 import type { AlignItems, BlendMode, Fill, Justify, Layout, Rect, Shadow, Sizing, Stroke, TextStyle, Track, WNode } from '../model/types';
 import {
   addLayout, align, distribute, originalImageSize, pickFiles, replaceImage, resetOverrides, updateNodes,
 } from '../model/commands';
 import { BOARD_PRESETS, BREAKPOINTS, DEFAULT_FILL, makeFill, makeShadow, makeStroke } from '../model/factory';
 import { FONTS, WEIGHT_NAMES, ensureFont, fontInfo } from '../model/fonts';
-import { cssText, nodeCss, slug } from '../model/css';
+import { cssText, isHeader, nodeCss, slug } from '../model/css';
 import { overrideKeys, PROP_NAMES } from '../model/resolve';
 import { Icons } from '../ui/icons';
 import { ColorField, IconButton, Menu, NumberField, Section, Seg, MOD, ALT, SHIFT } from '../ui/controls';
@@ -97,6 +100,7 @@ function DesignTab() {
       <StateSwitch nodes={nodes} />
       <BreakpointNotice nodes={nodes} />
       {nodes.length === 1 && <ComponentSection node={nodes[0]} />}
+      {nodes.length === 1 && <RegionSection node={nodes[0]} />}
       {nodes.length === 1 && <NavSection node={nodes[0]} />}
       {nodes.length === 1 && nodes[0].embed && <EmbedSection node={nodes[0]} />}
       {nodes.length === 1 && nodes[0].codeBlock && <CodeBlockSection node={nodes[0]} />}
@@ -104,7 +108,9 @@ function DesignTab() {
       <AlignBar count={nodes.length} />
       <MeasuresSection nodes={nodes} parents={parents} upd={upd} />
       {allInLayoutParent && <LayoutItemSection nodes={nodes} parents={layoutParents} upd={upd} />}
-      {(only('board') || only('rect')) && <LayoutSection nodes={nodes} upd={upd} />}
+      {only('board') && nodes.length === 1
+        ? <ArrangeSection node={nodes[0]} advanced={<LayoutSection nodes={nodes} upd={upd} />} />
+        : (only('board') || only('rect')) && <LayoutSection nodes={nodes} upd={upd} />}
       {only('board') && <BoardSection nodes={nodes} upd={upd} />}
       {only('board') && <GridSection nodes={nodes} />}
       {only('image') && nodes.length === 1 && <ImageSection node={nodes[0]} upd={upd} />}
@@ -476,6 +482,7 @@ function BoardSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
           Webseite – passt sich an Breakpoints an
         </label>
       )}
+      {nodes.length === 1 && !site && nodes[0].parentId && <FullscreenRows node={nodes[0]} />}
       {site && (
         <>
           <label className="check" title="In Browserfenstern, die breiter sind als hier eingestellt, bleibt der Inhalt so breit. Hintergründe und Flächen laufen trotzdem bis zum Fensterrand.">
@@ -506,6 +513,47 @@ function BoardSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
         </>
       )}
     </Section>
+  );
+}
+
+/** Vollbild: Bereich füllt beim Öffnen das ganze Fenster (z. B. Hero) */
+function FullscreenRows({ node }: { node: WNode }) {
+  const page = useEditor(pageOf);
+  const raw = useEditor(s => pageOf(s).nodes[node.id]);
+  const fs = raw?.fullscreen ?? null;
+  const parent = raw?.parentId ? page.nodes[raw.parentId] : undefined;
+  const canStay = !!parent?.layout && parent.layout.type === 'flex' && parent.layout.direction === 'column' && !raw?.absolute;
+  // Vorschlag für den Abzug: Höhe einer fixierten Kopfleiste über diesem Bereich
+  const header = parent ? parent.children.map(id => page.nodes[id]).find(c => c && c.id !== node.id && c.pin && (isHeader(c) || c.pin.mode === 'sticky')) : undefined;
+  const set = (v: WNode['fullscreen']) => setShared([node.id], n => { n.fullscreen = v; }, 'fullscreen');
+  return (
+    <>
+      <label className="check" title="Der Bereich ist beim Öffnen der Seite genau so hoch wie das Browserfenster – auf jedem Bildschirm. Darunter folgt beim Scrollen der restliche Inhalt.">
+        <input type="checkbox" checked={!!fs} onChange={e => set(e.target.checked ? { offset: header ? Math.round(header.h) : 0, stay: false } : null)} />
+        Füllt beim Öffnen das ganze Fenster (Vollbild)
+      </label>
+      {fs && (
+        <>
+          <div className="row">
+            <span className="lbl">Abzüglich</span>
+            <NumberField title="So viel weniger als die Fensterhöhe, z. B. die Höhe einer fixierten Kopfleiste darüber" suffix="px" min={0} max={600} step={1} precision={0}
+              value={fs.offset} onChange={v => set({ ...fs, offset: v })} />
+          </div>
+          {canStay && (
+            <label className="check" title="Der Bereich bleibt stehen, der folgende Inhalt schiebt sich beim Scrollen darüber.">
+              <input type="checkbox" checked={fs.stay} onChange={e => set({ ...fs, stay: e.target.checked })} />
+              Bleibt stehen – Inhalt schiebt sich darüber
+            </label>
+          )}
+          <p className="proto-hint">
+            Im Editor bleibt die gezeichnete Höhe, in der Vorschau und online füllt der Bereich das Fenster.
+            {header && fs.offset === 0 && <> Tipp: „{header.name}“ ist fixiert – trage ihre Höhe ({Math.round(header.h)} px) bei „Abzüglich“ ein.</>}
+            {fs.stay && <> Die Bereiche darunter brauchen eine Füllfarbe, sonst scheint der stehende Bereich durch.</>}
+            {' '}Inhalte bleiben mittig, wenn der Bereich ein Layout mit vertikaler Ausrichtung „Mitte“ hat.
+          </p>
+        </>
+      )}
+    </>
   );
 }
 
@@ -638,6 +686,7 @@ function TextSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
   return (
     <Section title="Text">
       <TextStyleRow nodes={nodes} />
+      <TextTagRow nodes={nodes} />
       <div className="row">
         <select className="select grow" value={family ?? ''} aria-label="Schriftart"
           onChange={e => {
@@ -1015,6 +1064,34 @@ function ColorLibMenu({ colors, current, isGradient, onPick, onSave }: {
         )}
       </Menu>
     </div>
+  );
+}
+
+/** Art des Textes für Google & Co.: Überschrift 1–4, Absatz, normaler Text */
+function TextTagRow({ nodes }: { nodes: WNode[] }) {
+  const doc = useEditor(s => s.doc);
+  const page = useEditor(pageOf);
+  const raw = useEditor(useShallow(s => s.selection.map(id => pageOf(s).nodes[id]).filter(Boolean) as WNode[]));
+  const own = common(raw, n => n.textTag ?? null);
+  const styleOf = (n: WNode) => styleTag(n.textStyleRef ? doc.library.textStyles.find(t => t.id === n.textStyleRef) : undefined);
+  const fromStyle = common(raw, n => styleOf(n) ?? null);
+  const effective = common(raw, n => n.textTag ?? styleOf(n) ?? 'div');
+  const auto = TEXT_TAGS.find(t => t.value === (fromStyle ?? 'div'))!;
+  const h1s = textsWithTag(doc, page, 'h1').length;
+  const set = (v: string) => setShared(nodes.map(n => n.id), n => { n.textTag = v ? (v as WNode['textTag']) : null; }, 'textTag');
+  return (
+    <>
+      <div className="row" title="Für Suchmaschinen und Screenreader: Welche Rolle hat dieser Text? Das Aussehen ändert sich dadurch nicht.">
+        <span className="lbl">Art</span>
+        <select className="select grow" aria-label="Art des Textes" value={own === undefined ? '__mixed' : own ?? ''} onChange={e => set(e.target.value)}>
+          {own === undefined && <option value="__mixed" disabled>Gemischt</option>}
+          <option value="">Automatisch{fromStyle !== undefined ? ` – ${auto.label}` : ''}</option>
+          {TEXT_TAGS.map(t => <option key={t.value} value={t.value} title={t.hint}>{t.label}</option>)}
+        </select>
+      </div>
+      {effective === 'h1' && h1s > 1 && <p className="proto-hint warn">Auf dieser Seite gibt es {h1s} Hauptüberschriften (H1). Google erwartet genau eine – die anderen besser als Überschrift 2 einstellen.</p>}
+      {effective !== undefined && effective !== 'h1' && h1s === 0 && /^h[2-4]$/.test(effective) && <p className="proto-hint">Diese Seite hat noch keine Hauptüberschrift (H1). Stelle die wichtigste Überschrift auf „Überschrift 1“.</p>}
+    </>
   );
 }
 

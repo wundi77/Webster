@@ -3,6 +3,7 @@
 import type { FormFieldKey, FormSettings, Page, WDocument, WNode } from './types';
 import { createNode, defaultTextStyle, makeFill, makeLayout, makeStroke } from './factory';
 import { siteRoot } from '../export/html';
+import { isFooter, isHeader } from './css';
 import { appendChild } from './commands';
 import { findLegalPage, mainFont } from './legal';
 import { useEditor, viewPage } from '../store';
@@ -103,8 +104,8 @@ export function insertForm(): string | null {
       form.alignSelf = 'auto';
     } else {
       // Ohne Layout: unter den bisherigen Inhalt setzen und das Board verlängern
-      const bottom = Math.max(0, ...r.children.map(c => pg.nodes[c]).filter(n => n && !n.nav && n.name !== 'Fußzeile').map(n => n.y + n.h));
-      const foot = r.children.map(c => pg.nodes[c]).find(n => n?.name === 'Fußzeile');
+      const bottom = Math.max(0, ...r.children.map(c => pg.nodes[c]).filter(n => n && !isHeader(n) && !isFooter(n)).map(n => n.y + n.h));
+      const foot = r.children.map(c => pg.nodes[c]).find(n => isFooter(n));
       form.x = 120; form.y = bottom + 80;
       form.overrides = { mobile: { x: 20, w: 350 }, tablet: { x: 40, w: 560 } };
       const grow = 640;

@@ -1,4 +1,5 @@
 // Dialog "Veröffentlichen": Prüfen → Domain → Herunterladen → Schritt-für-Schritt-Anleitung zum Hochladen
+import { textsWithTag } from '../model/headings';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useEditor } from '../store';
 import { Icons } from '../ui/icons';
@@ -77,6 +78,13 @@ function useChecks(): Check[] {
     action: { label: 'Abschnitt einfügen', run: () => addPolicySections(missingSvc) } });
   const empty = doc.pages.filter(p => !siteRoot(p));
   if (empty.length) out.push({ id: 'empty', level: 'warn', text: <>Ohne Inhalt (kein Board): {empty.map(p => p.name).join(', ')}.</>, action: { label: 'Seite öffnen', run: () => openPage(empty[0].id) } });
+
+  const noH1 = doc.pages.filter(p => siteRoot(p) && textsWithTag(doc, p, 'h1').length === 0);
+  const manyH1 = doc.pages.filter(p => textsWithTag(doc, p, 'h1').length > 1);
+  if (manyH1.length) out.push({ id: 'h1-many', level: 'info', text: <>Mehr als eine Hauptüberschrift (H1) auf: {manyH1.map(p => p.name).join(', ')}. Google erwartet genau eine pro Seite.</>, action: { label: 'Seite öffnen', run: () => openPage(manyH1[0].id) } });
+  out.push(noH1.length
+    ? { id: 'h1', level: 'info', text: <>Keine Hauptüberschrift (H1) auf: {noH1.map(p => p.name).join(', ')}. Wichtigste Überschrift markieren: Text auswählen → Text → Art „Überschrift 1“.</>, action: { label: 'Seite öffnen', run: () => openPage(noH1[0].id) } }
+    : { id: 'h1', level: 'ok', text: <>Jede Seite hat eine Hauptüberschrift (H1).</> });
 
   const seoMissing = doc.pages.filter(p => { const s = { ...defaultSeo(), ...p.seo }; return siteRoot(p) && (!s.title || !s.description); });
   out.push(seoMissing.length

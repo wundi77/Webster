@@ -32,7 +32,9 @@ export function effectiveSizing(node: WNode, inFlow: boolean): { h: Sizing; v: S
 }
 
 export const FOOTER_NAME = 'Fußzeile';
-export const isFooter = (n: WNode | undefined): boolean => !!n && n.type === 'board' && n.name === FOOTER_NAME;
+export const isFooter = (n: WNode | undefined): boolean => !!n && (n.role === 'footer' || (n.type === 'board' && n.name === FOOTER_NAME && n.role !== 'header'));
+/** Kopfzeile: eigene (Rolle) oder die fertige Kopfleiste mit Menü */
+export const isHeader = (n: WNode | undefined): boolean => !!n && (n.role === 'header' || (!!n.nav && n.role !== 'footer'));
 
 export function nodeCss(node: WNode, parent: Layout | null = null): Record<string, string> {
   const c: Record<string, string> = {};

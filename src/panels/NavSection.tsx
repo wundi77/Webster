@@ -2,7 +2,10 @@
 import { useState } from 'react';
 import { useEditor, viewPage } from '../store';
 import type { NavCollapse, NavSettings, WNode } from '../model/types';
-import { defaultNav, hasNavHeader, insertHeader, navOwner } from '../model/nav';
+import { defaultNav, hasNavHeader, insertHeader, navOwner, ownHeader } from '../model/nav';
+import { addMenuItem } from '../model/regions';
+import { isComponentPage, showMain } from '../model/library';
+import { Seg } from '../ui/controls';
 import { ColorField, Section } from '../ui/controls';
 import { Icons } from '../ui/icons';
 
@@ -19,7 +22,10 @@ function useOwner(node: WNode): WNode | undefined {
 export function NavSection({ node }: { node: WNode }) {
   const owner = useOwner(node);
   const setBp = useEditor(s => s.setBreakpoint);
+  const compPage = useEditor(s => isComponentPage(s.doc, s.pageId));
+  const links = useEditor(s => { const pg = viewPage(s); return owner ? Object.values(pg.nodes).find(n => n.navLinks && navOwner(pg, n.id)?.id === owner.id) : undefined; });
   if (!owner?.nav) return null;
+  const own = !!owner.role;
   const nav = { ...defaultNav(), ...owner.nav };
   const set = (patch: Partial<NavSettings>, key: string) =>
     useEditor.getState().mutate(pg => { const n = pg.nodes[owner.id]; if (n) n.nav = { ...defaultNav(), ...n.nav, ...patch }; }, { key: `nav-${key}` });
@@ -37,7 +43,8 @@ export function NavSection({ node }: { node: WNode }) {
           <option value="never">Nie – Links immer zeigen</option>
         </select>
       </div>
-      <p className="proto-hint">Oben fixieren und eine kleinere Version nach dem Scrollen: im Reiter „Elemente“ unter „Beim Scrollen“.</p>
+      {!own && <p className="proto-hint">Oben fixieren und eine kleinere Version nach dem Scrollen: im Reiter „Elemente“ unter „Beim Scrollen“.</p>}
+      {own && !links && <p className="proto-hint">Noch kein Menü-Bereich gewählt – oben bei der Kopfzeile unter „Menü-Bereich“.</p>}
       {nav.collapse !== 'never' && (
         <>
           <div className="field"><div className="field-label">Farbe des ☰-Symbols</div>
@@ -46,10 +53,19 @@ export function NavSection({ node }: { node: WNode }) {
             <ColorField color={nav.overlayBg} onChange={c => c.color && set({ overlayBg: c.color }, 'bg')} /></div>
           <div className="field"><div className="field-label">Geöffnetes Menü: Schrift</div>
             <ColorField color={nav.overlayText} onChange={c => c.color && set({ overlayText: c.color }, 'fg')} /></div>
-          <p className="proto-hint">Das geöffnete Menü füllt den ganzen Bildschirm. Ausprobieren in der Vorschau (P) mit „Mobil“.</p>
+          <div className="field"><div className="field-label">Menü öffnet sich</div>
+            <Seg value={nav.open ?? 'full'} onChange={v => set({ open: v }, 'open')} options={[
+              { value: 'full', icon: <span>Ganzer Bildschirm</span>, title: 'Das Menü legt sich über den ganzen Bildschirm, Punkte groß und mittig' },
+              { value: 'drop', icon: <span>Klappt herunter</span>, title: 'Das Menü klappt unter der Kopfzeile auf, die Seite bleibt sichtbar' },
+            ]} /></div>
+          <p className="proto-hint">Ausprobieren in der Vorschau (P), Fenster schmal ziehen oder mit dem Handy.</p>
         </>
       )}
-      <UpdatePages />
+      {links && (compPage
+        ? <div className="row"><button type="button" className="btn grow" title="Neuer Menüpunkt im Stil der vorhandenen – Text und Link änderst du danach wie bei jedem Text"
+            onClick={() => addMenuItem(links.id)}><Icons.plus /> Menüpunkt hinzufügen</button></div>
+        : own && <div className="row"><button type="button" className="btn grow" onClick={() => showMain(owner.componentId ?? owner.id)}>Menüpunkte im Original bearbeiten</button></div>)}
+      {!own && <UpdatePages />}
     </Section>
   );
 }
@@ -69,16 +85,24 @@ function UpdatePages() {
 /** Für den Prototyp-Tab ohne Auswahl */
 export function NavInsertSection() {
   const exists = useEditor(s => hasNavHeader(s.doc));
+  const own = useEditor(s => ownHeader(s.doc));
   const [msg, setMsg] = useState<string | null>(null);
+  if (own) return (
+    <Section title="Kopfzeile & Menü">
+      <p className="proto-hint">Deine eigene Kopfzeile „{own.name}“ ist festgelegt.</p>
+      <div className="row"><button type="button" className="btn grow" onClick={() => showMain(own.id)}>Kopfzeile bearbeiten</button></div>
+    </Section>
+  );
   return (
     <Section title="Kopfleiste & Menü">
       <p className="proto-hint">{exists
         ? 'Die Kopfleiste ist eine Komponente: Änderst du sie auf einer Seite (das Original), ändert sie sich überall.'
-        : 'Fügt oben auf allen Seiten eine Kopfleiste mit Logo-Text und Links zu allen Seiten ein. Auf dem Handy wird das Menü zum ☰-Symbol.'}</p>
+        : 'Fügt oben auf allen Seiten eine fertige Kopfleiste mit Logo-Text und Links zu allen Seiten ein. Auf dem Handy wird das Menü zum ☰-Symbol.'}</p>
+      {!exists && <p className="proto-hint">Lieber selbst bauen? Ein Board zeichnen, gestalten und rechts „Als Kopfzeile festlegen“ wählen.</p>}
       <div className="row"><button type="button" className="btn grow" onClick={() => {
         const r = insertHeader();
         setMsg(exists ? (r.links || r.pages ? `${r.links} Menüpunkt(e) ergänzt, auf ${r.pages} Seite(n) eingefügt.` : 'Alles aktuell.') : `Kopfleiste auf ${r.pages} Seite(n) eingefügt.`);
-      }}>{exists ? <><Icons.reset /> Seiten im Menü aktualisieren</> : <><Icons.plus /> Kopfleiste mit Menü einfügen</>}</button></div>
+      }}>{exists ? <><Icons.reset /> Seiten im Menü aktualisieren</> : <><Icons.plus /> Fertige Kopfleiste einfügen</>}</button></div>
       {msg && <p className="proto-hint" aria-live="polite">{msg}</p>}
     </Section>
   );

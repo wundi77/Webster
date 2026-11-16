@@ -149,6 +149,8 @@ export interface WNode {
   imageRef?: string;
   /** Verknüpfter Textstil aus der Bibliothek (null = gelöst) */
   textStyleRef?: string | null;
+  /** HTML-Art des Textes beim Export (Überschrift 1–4, Absatz, normaler Text). Leer = automatisch (vom Textstil) */
+  textTag?: TextTag | null;
   /** Hauptkomponente: dieses Board/diese Ebene ist das Original einer Komponente (Komponenten-ID = eigene ID) */
   isMain?: boolean;
   /** Varianten-Rahmen: Board, das mehrere Hauptkomponenten als Varianten einer Komponente enthält (Name = Komponentenname) */
@@ -182,8 +184,12 @@ export interface WNode {
   scrollDuration?: number;
   /** Nur Webseiten-Board: Inhalt in breiten Fenstern höchstens so breit (px) und mittig; Flächen laufen weiter bis zum Rand */
   contentWidth?: number | null;
+  /** Füllt beim Öffnen der Seite das ganze Browserfenster (z. B. Hero) */
+  fullscreen?: { offset: number; stay: boolean } | null;
   /** Wohin der begrenzte Inhalt rückt (Standard: mittig) */
   contentAlign?: 'left' | 'center' | 'right';
+  /** Diese Komponente ist die Kopfzeile bzw. Fußzeile der Website */
+  role?: 'header' | 'footer' | null;
   /** Diese Ebene ist eine Kopfleiste mit Menü */
   nav?: NavSettings | null;
   /** Dieses Board enthält die Menüpunkte (wird auf kleinen Bildschirmen zum ☰-Menü) */
@@ -218,6 +224,8 @@ export interface NavSettings {
   overlayBg: string;
   /** Schriftfarbe im geöffneten Menü */
   overlayText: string;
+  /** Wie sich das Menü öffnet: über den ganzen Bildschirm oder unter der Kopfzeile herunterklappend */
+  open?: 'full' | 'drop';
 }
 
 export interface CodeBlock { html: string; css: string; js: string }
@@ -302,7 +310,9 @@ export interface ColorAsset { id: string; name: string; color: string; opacity: 
 /** Typografie eines Textstils (ohne Ausrichtung und Unterstreichung) */
 export type TypoKey = 'fontFamily' | 'fontSize' | 'fontWeight' | 'lineHeight' | 'letterSpacing' | 'italic' | 'transform';
 export const TYPO_KEYS: TypoKey[] = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'italic', 'transform'];
-export interface TextStyleAsset { id: string; name: string; style: Pick<TextStyle, TypoKey> }
+export type TextTag = 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'div';
+
+export interface TextStyleAsset { id: string; name: string; style: Pick<TextStyle, TypoKey>; /** Art des Textes für alle Texte mit diesem Stil */ tag?: TextTag }
 
 export interface ImageAsset { id: string; name: string; src: string; w: number; h: number }
 

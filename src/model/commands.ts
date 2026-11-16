@@ -30,8 +30,11 @@ export function topLevel(page: Page, ids: string[]): string[] {
 export function endIndex(page: Page, parentId: string | null): number {
   const arr = containerOf(page, parentId);
   if (!parentId || !page.nodes[parentId]?.layout) return arr.length;
-  const last = page.nodes[arr[arr.length - 1]];
-  return isFooter(last) && !last.absolute ? arr.length - 1 : arr.length;
+  // Frei positionierte Ebenen zählen nicht – entscheidend ist die letzte im Fluss
+  let i = arr.length - 1;
+  while (i >= 0 && page.nodes[arr[i]]?.absolute) i--;
+  const last = page.nodes[arr[i]];
+  return i >= 0 && isFooter(last) ? i : arr.length;
 }
 
 /** Hängt eine Ebene ans Ende eines Boards (im Layout vor die Fußzeile) */
