@@ -655,6 +655,8 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     if (n.type === 'image') {
       const src = esc(ctx.imageSrc(n));
       const fit = n.objectFit ?? 'cover';
+      // Noch kein Bild gewählt: nur die Fläche (kein kaputtes Bild-Symbol)
+      if (!src) return `${pad}<div ${attrs.join(' ')} role="img" aria-label="${esc(n.name)}"></div>`;
       if (tag === 'img') return `${pad}<img ${attrs.join(' ')} src="${src}" alt="${esc(n.name)}" style="object-fit:${fit}" loading="lazy">`;
       return `${pad}<a ${attrs.join(' ')}><img src="${src}" alt="${esc(n.name)}" style="width:100%;height:100%;object-fit:${fit}" loading="lazy"></a>`;
     }
