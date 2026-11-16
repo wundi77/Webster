@@ -5,7 +5,8 @@ import type { WDocument, WNode } from '../model/types';
 import { slug } from '../model/css';
 import { fontHrefFor, type FontUse } from '../model/fonts';
 import { defaultSeo, defaultSite } from '../model/factory';
-import { BASE_CSS, EMBED_CSS, EMBED_JS, MOTION_CSS, MOTION_JS, FORM_CSS, FORM_JS, NAV_CSS, NAV_JS, REVEAL_JS, scrollJs, classNames, esc, groupFonts, pageFiles, renderPageParts, siteRoot } from './html';
+import { LOTTIE_PLAYER } from './lottiePlayer';
+import { BASE_CSS, EMBED_CSS, EMBED_JS, MOTION_CSS, MOTION_JS, LOTTIE_JS, siteFxCss, FORM_CSS, FORM_JS, NAV_CSS, NAV_JS, REVEAL_JS, scrollJs, classNames, esc, groupFonts, pageFiles, renderPageParts, siteRoot } from './html';
 
 export interface ExportWarning { pageId: string | null; text: string }
 
@@ -200,7 +201,12 @@ export async function exportSite(doc: WDocument, opts: ExportOptions): Promise<E
     if (parts.motion) anyMotion = true;
     if (parts.nav) anyNav = true;
     if (parts.form) anyForm = true;
-    const reveal = scripts.length ? `\n<script>\n${scripts.join('\n')}\n</script>` : '';
+    let reveal = scripts.length ? `\n<script>\n${scripts.join('\n')}\n</script>` : '';
+    if (parts.lottie) {
+      // Abspieler für fertige Animationen: einmal als Datei, auf jeder Seite nur eingebunden
+      if (!files['js/lottie.min.js']) files['js/lottie.min.js'] = strToU8(LOTTIE_PLAYER);
+      reveal += `\n<script src="js/lottie.min.js"></script>\n<script>\n${LOTTIE_JS}\n</script>`;
+    }
     bodies.push({
       pageId: page.id, file,
       html: `<!doctype html>\n<html lang="${esc(site.lang || 'de')}">\n<head>\n${head}\n</head>\n<body class="${pageCls}">\n${parts.body}${reveal}${site.bodyCode?.trim() ? '\n' + site.bodyCode.trim() : ''}\n</body>\n</html>\n`,
@@ -238,7 +244,7 @@ export async function exportSite(doc: WDocument, opts: ExportOptions): Promise<E
     files['robots.txt'] = strToU8('User-agent: *\nAllow: /\n');
   }
 
-  files['css/style.css'] = strToU8(`/* Erstellt mit Webster */\n\n${BASE_CSS}\n\n${anyNav ? NAV_CSS + '\n\n' : ''}${anyForm ? FORM_CSS + '\n\n' : ''}${anyEmbed ? EMBED_CSS + '\n\n' : ''}${anyMotion ? MOTION_CSS + '\n\n' : ''}${cssSections.join('\n\n')}\n${site.css?.trim() ? `\n/* ===== Eigenes CSS der Website ===== */\n\n${site.css.trim()}\n` : ''}`);
+  files['css/style.css'] = strToU8(`/* Erstellt mit Webster */\n\n${BASE_CSS}\n\n${anyNav ? NAV_CSS + '\n\n' : ''}${anyForm ? FORM_CSS + '\n\n' : ''}${anyEmbed ? EMBED_CSS + '\n\n' : ''}${anyMotion ? MOTION_CSS + '\n\n' : ''}${siteFxCss(site) ? siteFxCss(site) + '\n\n' : ''}${cssSections.join('\n\n')}\n${site.css?.trim() ? `\n/* ===== Eigenes CSS der Website ===== */\n\n${site.css.trim()}\n` : ''}`);
 
   const zipInput: Zippable = {};
   const folder = slug(site.name || doc.name) || 'website';

@@ -6,7 +6,18 @@ import { gradientCss, svgGradientId } from './gradient';
 import type { Fill } from './types';
 
 /** Eine Füllung als CSS-Bildebene (Verlauf oder einfarbig) */
-const fillLayer = (f: Fill) => (f.gradient ? gradientCss(f.gradient, f.opacity) : `linear-gradient(${rgba(f.color, f.opacity)}, ${rgba(f.color, f.opacity)})`);
+const fillLayer = (f: Fill) => (f.kind === 'grain' ? grainUrl(f) : f.gradient ? gradientCss(f.gradient, f.opacity) : `linear-gradient(${rgba(f.color, f.opacity)}, ${rgba(f.color, f.opacity)})`);
+
+/** Körnung: feines Rauschen als SVG (wird gekachelt) */
+export function grainUrl(f: Fill): string {
+  const coarse = f.grain === 'coarse';
+  const t = coarse ? 220 : 160;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${t}' height='${t}'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='${coarse ? 0.45 : 0.85}' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23g)' opacity='${round(f.opacity, 3)}'/></svg>`;
+  return `url("data:image/svg+xml,${svg.replace(/"/g, "'").replace(/</g, '%3C').replace(/>/g, '%3E')}")`;
+}
+const grainSize = (f: Fill) => (f.grain === 'coarse' ? '220px 220px' : '160px 160px');
+/** Hintergrund-Ebene, die als eigenes Element gezeichnet wird (Video) */
+export const videoFillOf = (n: WNode) => n.fills.find(f => f.visible && f.kind === 'video' && f.videoRef);
 
 export function rgba(hex: string, opacity = 1): string {
   let h = hex.replace('#', '');
@@ -145,6 +156,11 @@ export function nodeCss(node: WNode, parent: Layout | null = null): Record<strin
     else if (node.radius) c['border-radius'] = px(node.radius);
   }
 
+  // Vorher-Nachher: die obere Ebene ab der Reglerstelle zeigen
+  if (node.compareAfter) c['clip-path'] = 'inset(0 0 0 var(--cmp, 50%))';
+  if (node.compare) { c['--cmp'] = `${node.compare.pos}%`; if (!c.position) c.position = 'relative'; }
+  if (node.carousel && !c.position) c.position = 'relative';
+
   const fills = node.fills.filter(f => f.visible);
   const shape = node.type === 'vector' && (node.vector?.kind === 'polygon' || node.vector?.kind === 'star');
   if (node.type === 'vector') {
@@ -175,11 +191,28 @@ export function nodeCss(node: WNode, parent: Layout | null = null): Record<strin
       c['background-clip'] = 'text';
       c['-webkit-text-fill-color'] = 'transparent';
     }
-  } else if (fills.length === 1 && !fills[0].gradient) {
-    // nur Einzelangaben (keine „background“-Kurzform), damit Hover-Wechsel sauber zurückgesetzt werden
-    c['background-color'] = rgba(fills[0].color, fills[0].opacity);
-  } else if (fills.length) {
-    c['background-image'] = fills.map(fillLayer).join(', ');
+  } else {
+    // Video ist eine eigene Ebene (im Element), Glas färbt nur leicht und macht dahinter unscharf
+    const layers = fills.filter(f => f.kind !== 'video');
+    const glass = fills.find(f => f.kind === 'glass');
+    if (glass) {
+      const b = `blur(${px(glass.blur ?? 16)})`;
+      c['backdrop-filter'] = b; c['-webkit-backdrop-filter'] = b;
+    }
+    if (videoFillOf(node)) { c['isolation'] = 'isolate'; if (!c.position) c.position = 'relative'; }
+    const special = layers.some(f => f.kind === 'grain' || f.move);
+    if (layers.length === 1 && !layers[0].gradient && !special) {
+      // nur Einzelangaben (keine „background“-Kurzform), damit Hover-Wechsel sauber zurückgesetzt werden
+      c['background-color'] = rgba(layers[0].color, layers[0].opacity);
+    } else if (layers.length) {
+      c['background-image'] = layers.map(fillLayer).join(', ');
+      if (special) {
+        c['background-size'] = layers.map(f => (f.kind === 'grain' ? grainSize(f) : f.move ? '300% 300%' : '100% 100%')).join(', ');
+        c['background-position'] = layers.map(f => (f.move ? 'var(--bgx, 0%) 50%' : '0% 0%')).join(', ');
+        const mv = layers.find(f => f.move && f.gradient);
+        if (mv) c['animation'] = `w-bgmove ${mv.move}s ease-in-out infinite alternate`;
+      }
+    }
   }
 
   const st = node.strokes.find(s => s.visible);

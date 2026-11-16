@@ -2,7 +2,9 @@ import { memo, useEffect, useRef, type CSSProperties } from 'react';
 import { CODE_SANDBOX, codeSrcdoc } from '../model/code';
 import { takeEditCaret } from './textCaret';
 import { useEditor, pageOf } from '../store';
-import { nodeCss, toReactStyle } from '../model/css';
+import { nodeCss, toReactStyle, videoFillOf } from '../model/css';
+import { slideOf, useSlides } from '../model/blocks';
+import { LottieStill } from './LottieStill';
 import { ensureFont } from '../model/fonts';
 import { deleteNodes, setText } from '../model/commands';
 import { resolveNode } from '../model/resolve';
@@ -42,6 +44,13 @@ export const NodeView = memo(function NodeView({ id, parentLayout }: { id: strin
   const videoId = node?.embed?.videoRef;
   const posterSrc = useEditor(s => (posterId ? s.doc.library.images.find(i => i.id === posterId)?.src : undefined));
   const videoSrc = useEditor(s => (videoId ? s.doc.library.videos.find(v => v.id === videoId)?.src : undefined));
+  // Video als Hintergrund (Füllung): auf der Arbeitsfläche als stehendes Bild
+  const bgVideoId = node ? videoFillOf(node)?.videoRef : undefined;
+  const bgVideoSrc = useEditor(s => (bgVideoId ? s.doc.library.videos.find(v => v.id === bgVideoId)?.src : undefined));
+  // Karussell: nur eine Folie zeigen – die mit der Auswahl darin, sonst die zuletzt gewählte
+  const isCar = !!node?.carousel;
+  const selSlide = useEditor(s => (isCar ? slideOf(pageOf(s), id, s.selection[0]) : -1));
+  const uiSlide = useSlides(s => (isCar ? s[id] ?? 0 : 0));
   if (!node) return null;
   const style = toReactStyle(nodeCss(node, parentLayout)) as CSSProperties;
   const cls = node.locked ? 'node locked' : 'node';
@@ -105,9 +114,16 @@ export const NodeView = memo(function NodeView({ id, parentLayout }: { id: strin
     );
   }
   const childLayout = node.type === 'board' ? node.layout : null;
+  const shown = isCar ? Math.min(node.children.length - 1, Math.max(0, selSlide >= 0 ? selSlide : uiSlide)) : -1;
   return (
     <div className={cls} data-node-id={id} style={style}>
-      {node.children.map(c => <NodeView key={c} id={c} parentLayout={childLayout} />)}
+      {bgVideoSrc && <video className="bg-video" src={bgVideoSrc} muted playsInline preload="metadata" aria-hidden="true" />}
+      {node.lottie && <LottieStill assetId={node.lottie.ref} />}
+      {node.children.map((c, i) => (shown < 0 || i === shown) && <NodeView key={c} id={c} parentLayout={childLayout} />)}
+      {node.compare && <div className="cmp-line" style={{ left: `${node.compare.pos}%` }} />}
+      {isCar && node.carousel!.dots && node.children.length > 1 && (
+        <div className="car-dots-canvas">{node.children.map((c, i) => <i key={c} className={i === shown ? 'on' : ''} />)}</div>
+      )}
     </div>
   );
 });

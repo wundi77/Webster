@@ -9,7 +9,7 @@ import { ImagePick } from './SiteSettings';
 
 const RATIOS: [string, number][] = [['16:9', 16 / 9], ['4:3', 4 / 3], ['1:1', 1], ['9:16', 9 / 16]];
 
-function VideoFileButton({ label, onDone, className = 'btn grow' }: { label: string; onDone: (id: string) => void; className?: string }) {
+export function VideoFileButton({ label, onDone, className = 'btn grow' }: { label: string; onDone: (id: string) => void; className?: string }) {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);

@@ -985,3 +985,44 @@ body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
 @keyframes fdFloat { 0%, 100% { translate: 0 3px; } 50% { translate: 0 -5px; } }
 @keyframes fdPulse { 0%, 100% { scale: 1; } 50% { scale: 1.45; } }
 @media (prefers-reduced-motion: reduce) { .fx-demo i, .fx-mini i { animation: none !important; } }
+.bg-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; border-radius: inherit; pointer-events: none; }
+
+/* ---------- Füllung: besondere Hintergründe ---------- */
+.fill-special { border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px 4px; margin-bottom: 4px; }
+.fill-special > .row:first-child { margin-top: 2px; }
+.fill-thumb { flex: none; width: 22px; height: 22px; border-radius: 4px; display: grid; place-items: center; background-size: 60px 60px; }
+.fill-thumb.ft-video { background: #2b2b2f; color: #ddd; }
+.fill-thumb svg { width: 10px; height: 10px; }
+.fill-name { flex: none; font-size: 11px; color: var(--text-2); }
+.fill-demo i { display: none; }
+.fill-demo { width: 44px; height: 26px; }
+.fd-color { background: #7F77DD; }
+.fd-gradient { background: linear-gradient(120deg, #F0997B, #7F77DD); }
+.fd-move { background: linear-gradient(120deg, #F0997B, #7F77DD, #5DCAA5, #F0997B); background-size: 300% 300%; animation: fdBg 4s ease-in-out infinite alternate; }
+@keyframes fdBg { to { background-position: 100% 50%; } }
+.fd-video { background: #2b2b2f; }
+.fd-video::before { content: ''; position: absolute; left: 50%; top: 42%; translate: -40% -50%; border: 5px solid transparent; border-left: 8px solid #ddd; border-right: 0; }
+.fd-video::after { content: ''; position: absolute; left: 4px; bottom: 4px; height: 2px; background: #EF9F27; animation: fdVid 3s linear infinite; }
+@keyframes fdVid { from { width: 0; } to { width: 36px; } }
+.fd-grain { background-color: #b9b7ae; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.6'/%3E%3C/svg%3E"); }
+.fd-glass { background: linear-gradient(120deg, #F0997B, #7F77DD); }
+.fd-glass::after { content: ''; position: absolute; inset: 5px 8px; border-radius: 3px; background: rgba(255,255,255,.4); border: 1px solid rgba(255,255,255,.7); backdrop-filter: blur(3px); }
+@media (prefers-reduced-motion: reduce) { .fd-move, .fd-video::after { animation: none; } }
+
+/* ---------- Bewegte Bausteine auf der Arbeitsfläche ---------- */
+.cmp-line { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: #fff; box-shadow: 0 0 6px rgba(0,0,0,.3); pointer-events: none; z-index: 2; }
+.cmp-line::after { content: '⟷'; position: absolute; top: 50%; left: 50%; translate: -50% -50%; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: grid; place-items: center; color: #333; font: 16px/1 system-ui; }
+.car-dots-canvas { position: absolute; left: 0; right: 0; bottom: 14px; display: flex; justify-content: center; gap: 8px; pointer-events: none; z-index: 2; }
+.car-dots-canvas i { width: 8px; height: 8px; border-radius: 50%; background: rgba(0,0,0,.25); }
+.car-dots-canvas i.on { background: rgba(0,0,0,.7); }
+.lottie-still { position: absolute; inset: 0; pointer-events: none; display: grid; place-items: center; font-size: 12px; color: #888; }
+.lottie-still svg { width: 100% !important; height: 100% !important; }
+.fx-demo.fd-car i, .fx-demo.fd-cmp i { display: block; }
+.fd-car i { width: 30px; height: 18px; border-radius: 3px; animation: fdCar 3s ease-in-out infinite; }
+.fd-car i:nth-child(2) { background: var(--text-3); } .fd-car i:nth-child(3) { background: var(--accent-strong); }
+@keyframes fdCar { 0%, 25% { translate: 33px 0; } 40%, 60% { translate: 0 0; } 75%, 100% { translate: -33px 0; } }
+.fd-cmp { justify-content: flex-start; gap: 0; }
+.fd-cmp i { position: absolute; inset: 0; width: auto; height: auto; border-radius: 0; background: var(--text-3); }
+.fd-cmp i:nth-child(2) { background: var(--accent); animation: fdCmp 3s ease-in-out infinite; }
+.fd-cmp i:nth-child(3) { display: none; }
+@keyframes fdCmp { 0%, 100% { clip-path: inset(0 0 0 25%); } 50% { clip-path: inset(0 0 0 75%); } }

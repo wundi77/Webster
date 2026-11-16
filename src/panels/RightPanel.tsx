@@ -3,7 +3,7 @@ import { NavInsertSection, NavSection } from './NavSection';
 import { RegionSection } from './RegionSection';
 import { ArrangeSection } from './ArrangeSection';
 import { FormInsertSection, FormSection } from './FormSection';
-import { EmbedInsertSection, EmbedSection } from './EmbedSection';
+import { EmbedInsertSection, EmbedSection, VideoFileButton } from './EmbedSection';
 import { CodeBlockSection, CodeInsertSection, CustomCssField, SiteCodeSection } from './CodeSection';
 import { VectorSection } from './VectorSection';
 import { isShape } from '../model/vectorCore';
@@ -12,18 +12,18 @@ import { useShallow } from 'zustand/react/shallow';
 import { useEditor, viewPage, pageOf } from '../store';
 import { allPages, isPageBoard, pageBoard } from '../model/pageRules';
 import { TEXT_TAGS, styleTag, textsWithTag } from '../model/headings';
-import type { AlignItems, BlendMode, Fill, Justify, Layout, Rect, Shadow, Sizing, Stroke, TextStyle, Track, WNode } from '../model/types';
+import type { WDocument, AlignItems, BlendMode, Fill, Justify, Layout, Rect, Shadow, Sizing, Stroke, TextStyle, Track, WNode } from '../model/types';
 import {
   addLayout, align, distribute, originalImageSize, pickFiles, replaceImage, resetOverrides, updateNodes,
 } from '../model/commands';
 import { BOARD_PRESETS, BREAKPOINTS, DEFAULT_FILL, makeFill, makeShadow, makeStroke } from '../model/factory';
 import { FONTS, WEIGHT_NAMES, ensureFont, fontInfo } from '../model/fonts';
-import { cssText, isHeader, nodeCss, slug } from '../model/css';
+import { cssText, grainUrl, isHeader, nodeCss, slug } from '../model/css';
 import { overrideKeys, PROP_NAMES } from '../model/resolve';
 import { Icons } from '../ui/icons';
 import { ColorField, IconButton, Menu, NumberField, Section, Seg, MOD, ALT, SHIFT } from '../ui/controls';
 import { rgba } from '../model/css';
-import { gradientCss } from '../model/gradient';
+import { defaultGradient, gradientCss } from '../model/gradient';
 import type { PaintPatch } from '../ui/ColorPicker';
 import { addVariant, renameComponent, renameVariant, setInstanceVariant, addColor, addGradient, patchFill, applyTextStyle, detachInstances, hasOverrides, instanceCount, resetInstances, showMain, isComponentPage } from '../model/library';
 import { instanceRootOf, variantSetOf, variantsOf } from '../model/components';
@@ -33,6 +33,7 @@ import { HOVER_NAMES, withState } from '../model/hover';
 import { openPreview } from '../preview/bridge';
 import { hasFxTransform } from '../export/html';
 import { MotionSection } from './MotionSection';
+import { BlocksInsertSection, CarouselSection, CompareSection, LottieSection } from './BlocksSection';
 import type { Link, RevealType } from '../model/types';
 import { TYPO_KEYS, type ColorAsset } from '../model/types';
 
@@ -641,6 +642,9 @@ function SiteSection({ site }: { site: WNode }) {
   const alignWord = align === 'left' ? 'links' : align === 'right' ? 'rechts' : 'mittig';
   const setBase = (v: number) => useEditor.getState().mutate((_, d) => { d.site = { ...(d.site ?? { name: d.name, lang: 'de', url: '', favicon: null, selfHostFonts: false }), baseFont: Math.max(10, Math.min(28, Math.round(v))) }; }, { key: 'baseFont' });
   const gridKey = !grid ? 'off' : `${grid.count}`;
+  const trans = useEditor(s => s.doc.site?.pageTransition ?? 'none');
+  const mstyle = useEditor(s => s.doc.site?.motionStyle ?? 'normal');
+  const setSite = (patch: Partial<NonNullable<WDocument['site']>>, key: string) => useEditor.getState().mutate((_, d) => { d.site = { ...(d.site ?? { name: d.name, lang: 'de', url: '', favicon: null, selfHostFonts: false }), ...patch }; }, { key });
   return (
     <Section title="Webseite">
       <div className="row">
@@ -676,11 +680,27 @@ function SiteSection({ site }: { site: WNode }) {
           <option value="4">4 Spalten</option>
         </select>
       </div>
+      <div className="row">
+        <span className="lbl">Seitenwechsel</span>
+        <select className="select grow" aria-label="Übergang beim Seitenwechsel" value={trans} onChange={e => setSite({ pageTransition: e.target.value as 'none' }, 'pageTransition')}>
+          <option value="none">Direkt</option>
+          <option value="fade">Überblenden</option>
+          <option value="slide">Schieben</option>
+        </select>
+      </div>
+      <div className="row">
+        <span className="lbl">Bewegungen</span>
+        <Seg value={mstyle} onChange={v => setSite({ motionStyle: v === 'normal' ? undefined : v }, 'motionStyle')} options={[
+          { value: 'calm', icon: <span>Ruhig</span>, title: 'Alle Bewegungen langsamer und sanfter' },
+          { value: 'normal', icon: <span>Normal</span>, title: 'Wie eingestellt' },
+          { value: 'lively', icon: <span>Lebhaft</span>, title: 'Alle Bewegungen schneller und kräftiger' },
+        ]} />
+      </div>
       <p className="proto-hint">
         {cw === null
           ? 'Inhaltsbreite aus: In breiteren Fenstern ziehen sich Elemente im Layout mit in die Breite.'
           : `In breiteren Fenstern bleibt der Inhalt höchstens ${cw} px breit und steht ${alignWord}. Hintergründe laufen bis zum Rand.`}
-        {' '}Grundschrift: Größe für neue Texte und für Text ohne eigene Größe. Das Hilfsraster ist nur im Editor zu sehen (Feineinstellung unten unter „Spaltenraster“).
+        {' '}Grundschrift: Größe für neue Texte und für Text ohne eigene Größe. Das Hilfsraster ist nur im Editor zu sehen (Feineinstellung unten unter „Spaltenraster“). Seitenwechsel und Bewegungen siehst du in der Vorschau; wer „Bewegung reduzieren“ eingestellt hat, bekommt sie ruhig.
       </p>
     </Section>
   );
@@ -929,24 +949,128 @@ function TextSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
   );
 }
 
+type FillChoice = 'color' | 'gradient' | 'move' | 'video' | 'grain' | 'glass';
+const FILL_TILES: { v: FillChoice; label: string; tip: string; rich?: boolean }[] = [
+  { v: 'color', label: 'Farbe', tip: 'Eine Farbe' },
+  { v: 'gradient', label: 'Verlauf', tip: 'Farbverlauf' },
+  { v: 'move', label: 'Bewegter Verlauf', tip: 'Verlauf, der sich langsam bewegt', rich: true },
+  { v: 'video', label: 'Video', tip: 'Video läuft stumm und endlos im Hintergrund', rich: true },
+  { v: 'grain', label: 'Körnung', tip: 'Feines Rauschen für einen analogen Look', rich: true },
+  { v: 'glass', label: 'Glas', tip: 'Macht alles dahinter milchig-unscharf', rich: true },
+];
+const fillName = (f: Fill) => f.kind === 'video' ? 'Video' : f.kind === 'grain' ? 'Körnung' : f.kind === 'glass' ? 'Glas' : f.move ? 'Bewegter Verlauf' : f.gradient ? 'Verlauf' : 'Farbe';
+
 function FillSection({ nodes, upd, isText, isColor, noConic }: { nodes: WNode[]; upd: Upd; isText: boolean; isColor?: boolean; noConic?: boolean }) {
   const fills = nodes[0].fills;
+  const videos = useEditor(s => s.doc.library.videos);
+  const [picking, setPicking] = useState(false);
   const mixed = !nodes.every(n => JSON.stringify(n.fills) === JSON.stringify(fills));
   const set = (fn: (f: Fill[]) => void, key: string) => { const next = clone(fills); fn(next); upd(n => { n.fills = next; }, key); };
-  const add = () => set(f => { f.unshift(makeFill(fills[0]?.color ?? DEFAULT_FILL[nodes[0].type])); }, 'fill-add');
+  // Besondere Hintergründe gibt es für Boards und Flächen (nicht für Texte, Icons, Bilder)
+  const rich = !isText && !isColor && nodes.every(n => n.type === 'board' || n.type === 'rect' || n.type === 'ellipse');
+  const base = fills.find(f => !f.kind)?.color ?? DEFAULT_FILL[nodes[0].type];
+  const add = (v: FillChoice) => {
+    set(f => {
+      const n = makeFill(v === 'glass' ? '#FFFFFF' : v === 'grain' ? '#808080' : base, v === 'glass' ? 0.25 : v === 'grain' ? 0.35 : 1);
+      if (v === 'gradient' || v === 'move') n.gradient = defaultGradient(base);
+      if (v === 'move') { n.move = 8; n.gradient!.angle = 120; n.gradient!.stops = [{ id: 'a', color: '#F0997B', opacity: 1, pos: 0 }, { id: 'b', color: '#7F77DD', opacity: 1, pos: 0.5 }, { id: 'c', color: '#5DCAA5', opacity: 1, pos: 1 }]; }
+      if (v === 'video') { n.kind = 'video'; n.videoRef = videos[videos.length - 1]?.id ?? null; }
+      if (v === 'grain') { n.kind = 'grain'; n.grain = 'fine'; }
+      if (v === 'glass') { n.kind = 'glass'; n.blur = 16; }
+      // Glas, Körnung oben; Video ganz unten (liegt hinter allem)
+      if (v === 'video') f.push(n); else f.unshift(n);
+    }, 'fill-add');
+    setPicking(false);
+  };
+  const head = (i: number, f: Fill) => (
+    <>
+      <IconButton icon={f.visible ? <Icons.eye /> : <Icons.eyeOff />} title={f.visible ? 'Ausblenden' : 'Einblenden'}
+        onClick={() => set(x => { x[i].visible = !x[i].visible; }, 'fill-vis')} />
+      <IconButton icon={<Icons.minus />} title={`${fillName(f)} entfernen`} onClick={() => set(x => { x.splice(i, 1); }, 'fill-del')} />
+    </>
+  );
   return (
-    <Section title={isText ? 'Textfarbe' : isColor ? 'Farbe' : 'Füllung'} empty={!fills.length}
-      actions={<IconButton icon={<Icons.plus />} title="Füllung hinzufügen" onClick={add} />}>
+    <Section title={isText ? 'Textfarbe' : isColor ? 'Farbe' : 'Füllung'} empty={!fills.length && !picking}
+      actions={rich
+        ? <IconButton icon={picking ? <Icons.close /> : <Icons.plus />} title={picking ? 'Auswahl schließen' : 'Füllung hinzufügen'} active={picking} onClick={() => setPicking(!picking)} />
+        : <IconButton icon={<Icons.plus />} title="Füllung hinzufügen" onClick={() => add('color')} />}>
       {mixed && <p className="hint">Unterschiedliche Füllungen – Änderungen übernehmen die Füllung der ersten Ebene für alle.</p>}
-      {fills.map((f, i) => (
-        <div className="row" key={f.id}>
+      {fills.map((f, i) => {
+        if (f.kind === 'video') {
+          const v = videos.find(x => x.id === f.videoRef);
+          return (
+            <div className="fill-special" key={f.id}>
+              <div className="row">
+                <span className="fill-thumb ft-video"><Icons.play /></span>
+                <select className="select grow" aria-label="Video" value={f.videoRef ?? ''} onChange={e => set(x => { x[i].videoRef = e.target.value || null; }, 'fill-video')}>
+                  {!v && <option value="">Kein Video gewählt</option>}
+                  {videos.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select>
+                {head(i, f)}
+              </div>
+              <div className="row"><VideoFileButton label={videos.length ? 'Anderes Video hochladen …' : 'Video hochladen …'} onDone={id => set(x => { x[i].videoRef = id; }, 'fill-video')} /></div>
+              <p className="proto-hint">Läuft stumm und endlos hinter dem Inhalt. Auf der Arbeitsfläche steht es still. Am besten kurz und klein (unter 10 MB).</p>
+            </div>
+          );
+        }
+        if (f.kind === 'grain') return (
+          <div className="fill-special" key={f.id}>
+            <div className="row">
+              <span className="fill-thumb" style={{ backgroundImage: grainUrl({ ...f, opacity: 1 }), backgroundColor: '#999' }} />
+              <span className="fill-name">Körnung</span>
+              <NumberField className="w72" title="Stärke der Körnung" suffix="%" min={1} max={100} precision={0} value={Math.round(f.opacity * 100)} onChange={v => set(x => { x[i].opacity = v / 100; }, 'fill-grain')} />
+              {head(i, f)}
+            </div>
+            <div className="row">
+              <span className="lbl">Körner</span>
+              <Seg value={f.grain ?? 'fine'} onChange={v => set(x => { x[i].grain = v; }, 'fill-grain-s')} options={[
+                { value: 'fine', icon: <span>Fein</span>, title: 'Feine Körnung' },
+                { value: 'coarse', icon: <span>Grob</span>, title: 'Grobe Körnung' },
+              ]} />
+            </div>
+          </div>
+        );
+        const paint = (
           <PaintColor color={f.color} opacity={f.opacity} colorRef={f.colorRef} gradient={f.gradient} gradientRef={f.gradientRef}
-            allowGradient noConic={noConic} onChange={c => set(x => patchFill(x[i], c), 'fill' + i)} />
-          <IconButton icon={f.visible ? <Icons.eye /> : <Icons.eyeOff />} title={f.visible ? 'Ausblenden' : 'Einblenden'}
-            onClick={() => set(x => { x[i].visible = !x[i].visible; }, 'fill-vis')} />
-          <IconButton icon={<Icons.minus />} title="Füllung entfernen" onClick={() => set(x => { x.splice(i, 1); }, 'fill-del')} />
+            allowGradient={f.kind !== 'glass'} noConic={noConic} onChange={c => set(x => patchFill(x[i], c), 'fill' + i)} />
+        );
+        if (f.kind === 'glass') return (
+          <div className="fill-special" key={f.id}>
+            <div className="row"><span className="fill-name">Glas</span>{paint}{head(i, f)}</div>
+            <div className="row">
+              <span className="lbl">Milchig</span>
+              <NumberField title="Wie unscharf es dahinter wird" suffix="px" min={1} max={80} precision={0} value={f.blur ?? 16} onChange={v => set(x => { x[i].blur = v; }, 'fill-glass')} />
+            </div>
+            {fills.some(o => o !== f && o.visible && !o.kind && !o.gradient && o.opacity >= 0.95)
+              ? <div className="row"><button type="button" className="btn grow" title="Setzt die Deckkraft der anderen Farbfüllungen auf 40 %, damit man durch das Glas sieht"
+                  onClick={() => set(x => { x.forEach((o, j) => { if (j !== i && !o.kind && !o.gradient && o.opacity > 0.4) o.opacity = 0.4; }); }, 'fill-glass-see')}>Andere Farbe durchsichtig machen</button></div>
+              : <p className="proto-hint">Wirkt über Bildern oder Farben dahinter. Die Farbe färbt das Glas leicht ein.</p>}
+          </div>
+        );
+        if (f.move) return (
+          <div className="fill-special" key={f.id}>
+            <div className="row">{paint}{head(i, f)}</div>
+            <div className="row">
+              <span className="lbl">Bewegung</span>
+              <NumberField title="Sekunden für eine Bewegung – mehr ist ruhiger" suffix="s" min={1} max={60} step={1} precision={0} value={f.move} onChange={v => set(x => { x[i].move = v; }, 'fill-move')} />
+              <IconButton icon={<Icons.minus />} title="Nicht mehr bewegen" onClick={() => set(x => { delete x[i].move; }, 'fill-move-off')} />
+            </div>
+          </div>
+        );
+        return <div className="row" key={f.id}>{paint}{head(i, f)}</div>;
+      })}
+      {picking && (
+        <div className="fx-picker">
+          <div className="fx-tiles">
+            {FILL_TILES.filter(t => !t.rich || rich).map(t => (
+              <button key={t.v} type="button" className="fx-tile" title={t.tip} onClick={() => add(t.v)}>
+                <span className={`fx-demo fill-demo fd-${t.v}`}><i /></span>{t.label}
+              </button>
+            ))}
+          </div>
+          <p className="proto-hint">Mehrere Füllungen liegen übereinander – die oberste steht zuerst. Video liegt immer ganz hinten.</p>
         </div>
-      ))}
+      )}
     </Section>
   );
 }
@@ -1352,6 +1476,7 @@ function ProtoTab() {
         <NavInsertSection />
         <FormInsertSection />
         <EmbedInsertSection />
+        <BlocksInsertSection />
         <CodeInsertSection />
       </>
     );
@@ -1361,6 +1486,9 @@ function ProtoTab() {
     <>
       {nodes.length === 1 && <FormSection node={nodes[0]} />}
       <LinkSection nodes={nodes} ids={ids} />
+      {nodes.length === 1 && nodes[0].carousel && <CarouselSection node={nodes[0]} />}
+      {nodes.length === 1 && nodes[0].compare && <CompareSection node={nodes[0]} />}
+      {nodes.length === 1 && nodes[0].lottie && <LottieSection node={nodes[0]} />}
       <MotionSection nodes={nodes} ids={ids} />
       <ScrollSection nodes={nodes} ids={ids} />
     </>

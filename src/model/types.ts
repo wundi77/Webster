@@ -32,7 +32,18 @@ export interface Gradient { type: GradientType; angle: number; stops: GradientSt
 export interface Fill {
   id: string; color: string; opacity: number; visible: boolean; colorRef?: string | null;
   gradient?: Gradient | null; gradientRef?: string | null;
+  /** Besondere Hintergründe: Video, Körnung (Rauschen), Glas (macht dahinter milchig) */
+  kind?: FillKind;
+  /** Bewegter Verlauf: Sekunden für eine Bewegung hin */
+  move?: number;
+  /** Video aus der Bibliothek */
+  videoRef?: string | null;
+  /** Körnung: 'fine' oder 'coarse' */
+  grain?: 'fine' | 'coarse';
+  /** Glas: Unschärfe dahinter in px */
+  blur?: number;
 }
+export type FillKind = 'video' | 'grain' | 'glass';
 
 export type StrokePosition = 'inside' | 'center' | 'outside';
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
@@ -193,6 +204,14 @@ export interface WNode {
   reveal?: Reveal | null;
   /** Bewegung beim Scrollen, mit der Maus und dauerhaft */
   motion?: Motion | null;
+  /** Karussell: die Elemente darin sind Folien zum Durchblättern (auto = Sekunden bis zur nächsten, null = aus) */
+  carousel?: { auto: number | null; arrows: boolean; dots: boolean } | null;
+  /** Vorher-Nachher: zwei Ebenen übereinander, ein Schieberegler zeigt mehr von der einen oder anderen (pos in %) */
+  compare?: { pos: number } | null;
+  /** Die obere Ebene eines Vorher-Nachher-Vergleichs (wird ab der Reglerstelle gezeigt) */
+  compareAfter?: boolean;
+  /** Fertige Animation (Lottie) aus der Bibliothek */
+  lottie?: { ref: string; loop: boolean; play: 'auto' | 'view' | 'hover' } | null;
   /** Beim Scrollen fixieren */
   pin?: Pin | null;
   /** Abweichungen nach dem Scrollen (gelten für alle Breakpoints) */
@@ -315,6 +334,10 @@ export interface SiteSettings {
   bodyCode?: string;
   /** Grundschrift in px: Größe für neue Texte und für Text ohne eigene Größe */
   baseFont?: number;
+  /** Übergang beim Wechsel zwischen den Seiten */
+  pageTransition?: 'none' | 'fade' | 'slide';
+  /** Bewegungs-Stil der ganzen Seite: macht alle Bewegungen ruhiger oder lebhafter */
+  motionStyle?: 'calm' | 'normal' | 'lively';
 }
 
 export interface Page {
@@ -341,7 +364,10 @@ export interface VideoAsset { id: string; name: string; src: string; w: number; 
 
 export interface GradientAsset { id: string; name: string; gradient: Gradient }
 
-export interface Library { colors: ColorAsset[]; gradients: GradientAsset[]; textStyles: TextStyleAsset[]; images: ImageAsset[]; videos: VideoAsset[] }
+/** Fertige Animation (Lottie-Datei als Text) */
+export interface AnimationAsset { id: string; name: string; data: string; w: number; h: number; size: number }
+
+export interface Library { colors: ColorAsset[]; gradients: GradientAsset[]; textStyles: TextStyleAsset[]; images: ImageAsset[]; videos: VideoAsset[]; animations?: AnimationAsset[] }
 
 export interface WDocument {
   version: 1; name: string; pages: Page[]; library: Library; site?: SiteSettings;
