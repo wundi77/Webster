@@ -216,7 +216,7 @@ export function insideMain(pg: Page, id: string | null, componentId: string): bo
 /** Inhalte, die beim Wechsel der Variante in der Kopie erhalten bleiben (wenn dort geändert) */
 const KEEP_ON_SWAP = ['visible', 'text', 'imageRef', 'src', 'link', 'vector', 'embed', 'objectFit', 'alt'];
 /** Platzierung/Größe der Kopie selbst bleibt beim Wechsel erhalten (wenn dort geändert) */
-const KEEP_ROOT = ['name', 'sizingH', 'sizingV', 'w', 'h', 'visible', 'locked', 'reveal'];
+const KEEP_ROOT = ['name', 'sizingH', 'sizingV', 'w', 'h', 'visible', 'locked', 'reveal', 'motion'];
 
 /** Varianten-Rahmen einer Hauptkomponente (oder null) */
 export function variantSetOf(pg: Page, mainId: string): WNode | null {

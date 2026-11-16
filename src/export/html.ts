@@ -89,6 +89,76 @@ h1, h2, h3, h4, p { margin: 0; font: inherit; }
 
 export const REVEAL_JS = `(function(){var els=document.querySelectorAll('[data-reveal]');if(!('IntersectionObserver' in window)){els.forEach(function(e){e.classList.add('in')});return}var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:0.12,rootMargin:'0px 0px -5% 0px'});els.forEach(function(e){io.observe(e)})})();`;
 
+/** Bewegungen (Bereich „Bewegung“): Grundwerte als registrierte Variablen, damit sie sich animieren lassen */
+export const MOTION_CSS = `@property --fx-x{syntax:'<length>';inherits:false;initial-value:0px}
+@property --fx-y{syntax:'<length>';inherits:false;initial-value:0px}
+@property --fm-x{syntax:'<length>';inherits:false;initial-value:0px}
+@property --fm-y{syntax:'<length>';inherits:false;initial-value:0px}
+@property --fx-ly{syntax:'<length>';inherits:false;initial-value:0px}
+@property --fx-b{syntax:'<length>';inherits:false;initial-value:0px}
+@property --fx-r{syntax:'<angle>';inherits:false;initial-value:0deg}
+@property --fx-rx{syntax:'<angle>';inherits:false;initial-value:0deg}
+@property --fx-ry{syntax:'<angle>';inherits:false;initial-value:0deg}
+@property --fx-s{syntax:'<number>';inherits:false;initial-value:1}
+@property --fx-ls{syntax:'<number>';inherits:false;initial-value:1}
+@property --fx-o{syntax:'<number>';inherits:false;initial-value:1}
+[data-reveal="words"], [data-reveal="count"] { opacity: var(--op, 1); translate: none; scale: none; }
+.w-wd { display: inline-block; opacity: 0; translate: 0 .45em; transition: opacity var(--rd, 600ms) ease calc(var(--rdl, 0ms) + var(--i) * 80ms), translate var(--rd, 600ms) cubic-bezier(.2,.7,.2,1) calc(var(--rdl, 0ms) + var(--i) * 80ms); }
+[data-reveal="words"].in .w-wd { opacity: 1; translate: none; }
+.w-mq { display: flex; flex: none; width: max-content; gap: inherit; align-items: inherit; padding-inline-end: var(--mq-gap, 0px); animation: w-mq var(--mq, 20s) linear infinite; }
+.w-mq.rev { animation-direction: reverse; }
+[data-fx-loop="marquee"]:hover .w-mq { animation-play-state: paused; }
+@keyframes w-mq { to { transform: translateX(-50%); } }
+@keyframes w-float { 50% { --fx-ly: var(--amp); } }
+@keyframes w-pulse { 50% { --fx-ls: var(--amp); } }
+[data-fx-side] > * { flex-shrink: 0; }
+@media (prefers-reduced-motion: reduce) {
+  [data-fx-loop] { animation: none !important; }
+  .w-mq { animation: none !important; }
+  [data-fx-loop="marquee"] { overflow-x: auto !important; }
+  .w-wd { opacity: 1 !important; translate: none !important; transition: none !important; }
+  [data-fx-side] { overflow-x: auto !important; position: relative !important; top: auto !important; }
+}`;
+
+export const MOTION_JS = `(function(){var R=matchMedia('(prefers-reduced-motion: reduce)').matches,D=document,Q=function(s){return [].slice.call(D.querySelectorAll(s))},cl=function(v,a,b){return Math.max(a,Math.min(b,v))},texts=function(el){var w=D.createTreeWalker(el,4),a=[];while(w.nextNode())a.push(w.currentNode);return a},ms=function(el,k,d){var v=parseFloat(getComputedStyle(el).getPropertyValue(k));return isNaN(v)?d:v};
+Q('[data-reveal="words"]').forEach(function(el){var i=0;texts(el).forEach(function(t){var f=D.createDocumentFragment();t.nodeValue.split(/(\\s+)/).forEach(function(p){if(!p)return;if(/^\\s+$/.test(p)){f.appendChild(D.createTextNode(p));return}var s=D.createElement('span');s.className='w-wd';s.style.setProperty('--i',i++);s.textContent=p;f.appendChild(s)});t.parentNode.replaceChild(f,t)})});
+var cnt=Q('[data-reveal="count"]').map(function(el){var items=texts(el).map(function(t){var s=t.nodeValue,m,re=/\\d[\\d.,]*\\d|\\d/g,l=[];while((m=re.exec(s)))l.push({i:m.index,str:m[0]});return {t:t,s:s,l:l}}).filter(function(x){return x.l.length});
+function put(p){items.forEach(function(x){var out=x.s;for(var k=x.l.length-1;k>=0;k--){var it=x.l[k],str=it.str,v;var dm=/,(\\d{1,2})$/.exec(str);if(dm&&!/\\.\\d{3}$/.test(str)){var d=dm[1].length,n=parseFloat(str.replace(/\\./g,'').replace(',','.'));v=(n*p).toFixed(d).replace('.',',')}else{var g=/[.,]\\d{3}/.test(str),sep=g?str.match(/[.,]/)[0]:'',n2=parseInt(str.replace(/[.,]/g,''),10);v=String(Math.round(n2*p));if(g)v=v.replace(/\\B(?=(\\d{3})+(?!\\d))/g,sep)}out=out.slice(0,it.i)+v+out.slice(it.i+str.length)}x.t.nodeValue=out})}
+return {el:el,put:put}});
+if(!R&&cnt.length&&'IntersectionObserver' in window){cnt.forEach(function(c){c.put(0)});var io=new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;io.unobserve(e.target);var c=cnt.filter(function(x){return x.el===e.target})[0],dur=ms(c.el,'--rd',1200),dl=ms(c.el,'--rdl',0),t0=0;setTimeout(function(){requestAnimationFrame(function st(t){if(!t0)t0=t;var p=cl((t-t0)/dur,0,1);c.put(1-Math.pow(1-p,3));if(p<1)requestAnimationFrame(st)})},dl)})},{threshold:.3});cnt.forEach(function(c){io.observe(c.el)})}
+if(R)return;
+var sc=Q('[data-fx-scroll]'),sides=Q('.w-side'),vis=new Set(sc),q=false;
+if('IntersectionObserver' in window){vis=new Set();var vo=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)vis.add(e.target);else vis.delete(e.target)})},{rootMargin:'25% 0px'});sc.forEach(function(e){vo.observe(e)})}
+function size(){sides.forEach(function(w){var el=w.firstElementChild;if(!el)return;var ex=Math.max(0,el.scrollWidth-el.clientWidth);w._ex=ex;w.style.height=(el.offsetHeight+ex)+'px';el.style.top=Math.max(0,(innerHeight-el.offsetHeight)/2)+'px'})}
+function frame(){q=false;var vh=innerHeight;vis.forEach(function(el){var k=el.getAttribute('data-fx-scroll'),a=parseFloat(el.getAttribute('data-fx-amt'))||0,r=el.getBoundingClientRect(),c=r.top+r.height/2-(el._fy||0),t=(c-vh/2)/vh,st=el.style;
+if(k==='depth'){var y=cl(t,-1.2,1.2)*vh*.4*a/100;el._fy=y;st.setProperty('--fx-y',y.toFixed(1)+'px')}
+else if(k==='rotate')st.setProperty('--fx-r',(cl(t,-1,1)*a).toFixed(2)+'deg');
+else{var g=cl(t/.45,0,1);if(k==='grow')st.setProperty('--fx-s',(1-(1-a/100)*g).toFixed(4));else{st.setProperty('--fx-o',(1-.85*g).toFixed(3));st.setProperty('--fx-b',(8*g).toFixed(2)+'px')}}});
+sides.forEach(function(w){var el=w.firstElementChild,ex=w._ex||0;if(!el||!ex)return;var r=w.getBoundingClientRect(),off=parseFloat(el.style.top)||0;el.scrollLeft=cl((off-r.top)/ex,0,1)*ex})}
+function req(){if(!q){q=true;requestAnimationFrame(frame)}}
+if(sc.length||sides.length){size();frame();addEventListener('scroll',req,{passive:true});addEventListener('resize',function(){size();req()});addEventListener('load',function(){size();req()})}
+if(!matchMedia('(hover: hover)').matches)return;
+Q('[data-fx-mouse]').forEach(function(el){var k=el.getAttribute('data-fx-mouse'),a=parseFloat(el.getAttribute('data-fx-mamt'))||0,st=el.style,set=function(x,y){st.setProperty('--fm-x',x.toFixed(1)+'px');st.setProperty('--fm-y',y.toFixed(1)+'px')};
+if(k==='tilt'){el.addEventListener('pointermove',function(e){var r=el.getBoundingClientRect(),px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;st.setProperty('--fx-ry',(px*a*2).toFixed(2)+'deg');st.setProperty('--fx-rx',(-py*a*2).toFixed(2)+'deg')});el.addEventListener('pointerleave',function(){st.setProperty('--fx-ry','0deg');st.setProperty('--fx-rx','0deg')})}
+else if(k==='magnet'){var ox=0,oy=0;D.addEventListener('pointermove',function(e){var r=el.getBoundingClientRect(),cx=r.left+r.width/2-ox,cy=r.top+r.height/2-oy,dx=e.clientX-cx,dy=e.clientY-cy,near=Math.abs(dx)<r.width/2+60&&Math.abs(dy)<r.height/2+60;ox=near?dx*a/100:0;oy=near?dy*a/100:0;set(ox,oy)},{passive:true})}
+else{var p=el.parentElement||D.body;p.addEventListener('pointermove',function(e){var r=p.getBoundingClientRect();set((e.clientX-r.left-r.width/2)*a/100,(e.clientY-r.top-r.height/2)*a/100)});p.addEventListener('pointerleave',function(){set(0,0)})}})})();`;
+
+/** Transformation für Bewegungen – wird an eine vorhandene Drehung angehängt */
+export const FX_TRANSFORM = 'perspective(900px) translate3d(calc(var(--fx-x) + var(--fm-x)), calc(var(--fx-y) + var(--fm-y) + var(--fx-ly)), 0) rotate(var(--fx-r)) scale(calc(var(--fx-s) * var(--fx-ls))) rotateX(var(--fx-rx)) rotateY(var(--fx-ry))';
+const FX_SCROLL = new Set(['depth', 'rotate', 'grow', 'focus']);
+/** Braucht das Element die Bewegungs-Transformation? */
+export const hasFxTransform = (n: WNode) => !!((n.motion?.scroll && FX_SCROLL.has(n.motion.scroll.kind)) || n.motion?.mouse || (n.motion?.loop && n.motion.loop.kind !== 'marquee'));
+/** Erscheinen tatsächlich: „Nacheinander“ am Eltern-Element überträgt sich auf die Kinder */
+export function revealOf(n: WNode, parent: WNode | undefined) {
+  const pr = parent?.reveal;
+  if (pr?.stagger && !n.absolute && !n.pin) {
+    const i = parent!.children.indexOf(n.id);
+    return { type: pr.type, duration: pr.duration, delay: pr.delay + Math.max(0, i) * pr.stagger };
+  }
+  if (n.reveal?.stagger) return null;
+  return n.reveal ?? null;
+}
+
 /** Setzt html.w-scrolled ab einer Scroll-Position; der Puffer verhindert Flackern, wenn die Kopfzeile dabei kleiner wird */
 export const scrollJs = (sc: { at: number; hyst: number }) => `(function(){var r=document.documentElement,on=false,q=false,t=${Math.round(sc.at)},off=${Math.max(0, Math.round(sc.at - Math.max(sc.hyst, 20)))};function u(){q=false;var y=window.pageYOffset;if(!on&&y>t){on=true;r.classList.add('w-scrolled')}else if(on&&y<=off){on=false;r.classList.remove('w-scrolled')}}window.addEventListener('scroll',function(){if(!q){q=true;requestAnimationFrame(u)}},{passive:true});u()})();`;
 
@@ -139,7 +209,7 @@ const PIN_SVG = '<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="tr
 /** Empfänger-Adresse so verpacken, dass Adress-Sammler sie nicht im Quelltext finden */
 export const encodeMail = (to: string) => btoa(unescape(encodeURIComponent(to.trim().split('').reverse().join(''))));
 
-export interface PageParts { body: string; css: string; fonts: FontUse[]; background: string; empty: boolean; nav?: boolean; form?: boolean; embed?: boolean;
+export interface PageParts { body: string; css: string; fonts: FontUse[]; background: string; empty: boolean; nav?: boolean; form?: boolean; embed?: boolean; motion?: boolean;
   /** Umschalten nach dem Scrollen: ab welcher Position, mit wie viel Puffer beim Zurückscrollen */
   scroll?: { at: number; hyst: number } }
 
@@ -185,6 +255,14 @@ export function renderPageParts(ctx: PageCtx): PageParts {
   // Inhaltsbreite: In breiten Fenstern bleibt der Inhalt mittig, Flächen laufen bis zum Rand.
   // „Bänder“ sind das Webseiten-Board und alle Boards darin, die (im Layout) die volle Breite füllen.
   const cw = root.contentWidth && root.contentWidth > 0 ? Math.round(root.contentWidth) : 0;
+  // Vorfahren von „Stapeln“/„Seitwärts“: dürfen nicht abschneiden (sonst klebt nichts)
+  const stickyAnc = new Set<string>();
+  for (const x of Object.values(page.nodes)) {
+    const k = x.motion?.scroll?.kind;
+    if (k !== 'stack' && k !== 'sideways') continue;
+    for (let a = x.parentId ? page.nodes[x.parentId] : undefined; a; a = a.parentId ? page.nodes[a.parentId] : undefined) stickyAnc.add(a.id);
+  }
+  let hasMotion = false;
   const bands = new Map<string, number>(); // Band → verfügbare Inhaltsbreite in seinem Eltern-Element
   const bandParents = new Set<string>();
   const padX = (b: WNode) => { const L = resolveNode(b, 'desktop').layout; return L ? L.padding[1] + L.padding[3] : 0; };
@@ -277,7 +355,34 @@ export function renderPageParts(ctx: PageCtx): PageParts {
       if (c.overflow === 'hidden') c.overflow = 'clip';
       if (!(rn.layout && rn.sizingV === 'auto')) c['min-height'] = px(rn.h);
     }
-    if (n.reveal && c.opacity) { c['--op'] = c.opacity; delete c.opacity; }
+    // Bewegung
+    const mo = n.motion;
+    const pm = parent?.motion;
+    const inFlowChild = !!pl && !n.absolute && !n.pin;
+    if (hasFxTransform(n)) c.transform = c.transform ? `${c.transform} ${FX_TRANSFORM}` : FX_TRANSFORM;
+    if (mo?.scroll?.kind === 'focus') {
+      c.opacity = c.opacity ? `calc(${c.opacity} * var(--fx-o))` : 'var(--fx-o)';
+      c.filter = c.filter ? `${c.filter} blur(var(--fx-b))` : 'blur(var(--fx-b))';
+    }
+    if (mo?.loop && mo.loop.kind !== 'marquee') {
+      c.animation = `w-${mo.loop.kind} ${mo.loop.speed}s ease-in-out infinite`;
+      c['--amp'] = mo.loop.kind === 'float' ? `${-Math.abs(mo.loop.amount)}px` : String(1 + mo.loop.amount / 100);
+    }
+    if (mo?.loop?.kind === 'marquee') {
+      c.overflow = 'hidden'; c['flex-wrap'] = 'nowrap';
+      c['--mq'] = `${mo.loop.speed}s`; c['--mq-gap'] = px(rn.layout?.gap ?? 0);
+    }
+    if (pm?.loop?.kind === 'marquee' && inFlowChild) {
+      c.flex = 'none';
+      if (rn.sizingH === 'fill') c.width = px(rn.w);
+    }
+    if (pm?.scroll?.kind === 'stack' && inFlowChild) { c.position = 'sticky'; c.top = '0'; }
+    if (mo?.scroll?.kind === 'sideways') {
+      c.position = 'sticky'; c.top = '0'; c.overflow = 'hidden'; c['flex-wrap'] = 'nowrap';
+      if (c.width === undefined || c.width === 'auto') c.width = '100%';
+    }
+    if (stickyAnc.has(n.id) && c.overflow === 'hidden') c.overflow = 'clip';
+    if (revealOf(n, parent) && c.opacity) { c['--op'] = c.opacity; delete c.opacity; }
     const pin = n.pin;
     if (pin && n.id !== root.id) {
       if (pin.mode === 'sticky' && pl && !n.absolute) { c.position = 'sticky'; c.top = '0'; }
@@ -318,12 +423,18 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     const hasScroll = !!n.scrolled && Object.keys(n.scrolled).length > 0;
     if (hasScroll) trans.push(`all ${scrollDur(n)}ms ease`);
     else if (hasHover) trans.push(`all ${n.hoverDuration ?? 200}ms ease`);
-    if (n.reveal) {
-      d['--rd'] = `${n.reveal.duration}ms`;
-      d['--rdl'] = `${n.reveal.delay}ms`;
-      trans.push('opacity var(--rd) ease var(--rdl)', 'translate var(--rd) cubic-bezier(.2,.7,.2,1) var(--rdl)', 'scale var(--rd) cubic-bezier(.2,.7,.2,1) var(--rdl)');
+    const rv = revealOf(n, parent);
+    if (n.motion || rv?.type === 'words' || rv?.type === 'count' || n.reveal?.stagger) hasMotion = true;
+    // Bewegung beim Scrollen folgt sofort (kein Nachziehen durch andere Übergänge)
+    if (n.motion?.scroll && trans.length) trans.push('transform 0s', 'filter 0s', '--fx-y 0s', '--fx-r 0s', '--fx-s 0s', '--fx-o 0s', '--fx-b 0s');
+    if (n.motion?.mouse) trans.push(...['--fx-rx', '--fx-ry', '--fm-x', '--fm-y'].map(k => `${k} ${n.motion!.mouse!.kind === 'follow' ? 900 : 350}ms cubic-bezier(.2,.7,.2,1)`));
+    if (rv) {
+      d['--rd'] = `${rv.duration}ms`;
+      d['--rdl'] = `${rv.delay}ms`;
+      if (rv.type !== 'words' && rv.type !== 'count') trans.push('opacity var(--rd) ease var(--rdl)', 'translate var(--rd) cubic-bezier(.2,.7,.2,1) var(--rdl)', 'scale var(--rd) cubic-bezier(.2,.7,.2,1) var(--rdl)');
     }
     if (trans.length) d.transition = trans.join(', ');
+    if (rv && (rv.type === 'words' || rv.type === 'count') && !trans.length) delete d.transition;
 
     base.push(block(sel, d, pretty));
     const strip = (c: Css) => { delete c['--rd']; delete c['--rdl']; delete c.transition; return c; };
@@ -337,6 +448,7 @@ export function renderPageParts(ctx: PageCtx): PageParts {
       const h = diff(nodeCss(rn, pl), nodeCss({ ...rn, ...n.hover }, pl));
       // Farb-/Verlaufsangaben müssen beim Wechsel (z. B. Verlauf → Farbe) zurückgesetzt werden, alles andere nicht
       for (const k of Object.keys(h)) if (h[k] === 'unset' && !PAINT_RESET.has(k)) delete h[k];
+      if (h.transform && hasFxTransform(n)) h.transform = `${h.transform} ${FX_TRANSFORM}`;
       if (n.type === 'text') addFont(n.hover!.textStyle);
       const trigger = linkAncestor && linkAncestor !== n.id ? `${pre}.${ctx.cls(linkAncestor)}:hover .${cls}` : `${sel}:hover`;
       hoverRules.push(block(trigger, h, pretty));
@@ -373,7 +485,12 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     // Element
     const attrs: string[] = [`class="${cls}"`];
     if (anchors.has(n.id)) attrs.push(`id="${cls}"`);
-    if (n.reveal) attrs.push(`data-reveal="${n.reveal.type}"`);
+    if (rv) attrs.push(`data-reveal="${rv.type}"`);
+    const mo = n.motion;
+    if (mo?.scroll && FX_SCROLL.has(mo.scroll.kind)) attrs.push(`data-fx-scroll="${mo.scroll.kind}"`, `data-fx-amt="${mo.scroll.amount}"`);
+    if (mo?.scroll?.kind === 'sideways') attrs.push('data-fx-side');
+    if (mo?.mouse) attrs.push(`data-fx-mouse="${mo.mouse.kind}"`, `data-fx-mamt="${mo.mouse.amount}"`);
+    if (mo?.loop) attrs.push(`data-fx-loop="${mo.loop.kind}"`);
     let tag = n.type === 'image' ? 'img' : 'div';
     let myLink = linkAncestor;
     const L = n.link;
@@ -497,8 +614,14 @@ export function renderPageParts(ctx: PageCtx): PageParts {
       if (!anchors.has(n.id)) attrs.push(`id="${cls}"`);
       attrs.push('data-nav-links');
     }
-    const kids = n.children.map(c => el(c, n, myLink, depth + 1)).join('');
+    let kids = n.children.map(c => el(c, n, myLink, depth + 1)).join('');
+    if (mo?.loop?.kind === 'marquee' && kids) {
+      // Endlos: Inhalt zweimal hintereinander, die Kopie ist für Vorlese-Programme unsichtbar
+      const twin = kids.replace(/ id="[^"]*"/g, '');
+      kids = `<div class="w-mq${mo.loop.reverse ? ' rev' : ''}">${kids}<div style="display:contents" aria-hidden="true" inert>${twin}</div></div>`;
+    }
     let out = `${pad}<${tag} ${attrs.join(' ')}>${kids}${kids && pretty ? pad : ''}</${tag}>`;
+    if (mo?.scroll?.kind === 'sideways') out = `${pad}<div class="w-side">${out}</div>`;
     if (nav && nav.collapse !== 'never') {
       const tcls = `nav-toggle-${cls}`;
       out += `${pad}<button class="nav-toggle ${tcls}" type="button" aria-label="Menü öffnen" aria-expanded="false" aria-controls="${cls}"><span></span><span></span><span></span></button>`;
@@ -552,7 +675,7 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     scrollRules.length ? `@media (prefers-reduced-motion: reduce) {${nl}  html.w-scrolled * { transition: none !important; }${nl}}` : '',
   ].filter(Boolean).join(pretty ? '\n\n' : '\n');
   const scroll = scrollRules.length ? { at: scrollAt, hyst: shrink + 20 } : undefined;
-  return { body, css, fonts, background: bg ? rgba(bg.color, bg.opacity) : '#fff', empty: false, nav: navRules.length > 0, form: hasForm, embed: hasEmbed, scroll };
+  return { body, css, fonts, background: bg ? rgba(bg.color, bg.opacity) : '#fff', empty: false, nav: navRules.length > 0, form: hasForm, embed: hasEmbed, scroll, motion: hasMotion };
 }
 
 /** Schriften gruppiert nach Familie */
@@ -584,6 +707,7 @@ ${BASE_CSS}
 ${parts.nav ? NAV_CSS : ''}
 ${parts.form ? FORM_CSS : ''}
 ${parts.embed ? EMBED_CSS : ''}
+${parts.motion ? MOTION_CSS : ''}
 body{background:${parts.background}${doc.site?.baseFont ? `;font-size:${doc.site.baseFont}px` : ''}}
 ${parts.css}
 ${doc.site?.css ?? ''}
@@ -592,7 +716,7 @@ ${doc.site?.headCode ?? ''}
 </head>
 <body>
 ${parts.body}
-<script>${REVEAL_JS}${parts.scroll ? scrollJs(parts.scroll) : ''}${parts.nav ? NAV_JS : ''}${parts.form ? FORM_JS : ''}${parts.embed ? EMBED_JS : ''}</script>
+<script>${REVEAL_JS}${parts.scroll ? scrollJs(parts.scroll) : ''}${parts.nav ? NAV_JS : ''}${parts.form ? FORM_JS : ''}${parts.embed ? EMBED_JS : ''}${parts.motion ? MOTION_JS : ''}</script>
 ${doc.site?.bodyCode ?? ''}
 </body>
 </html>`;

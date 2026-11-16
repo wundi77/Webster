@@ -98,8 +98,21 @@ export type Link =
 export const HOVER_KEYS = ['fills', 'strokes', 'shadows', 'opacity', 'blur', 'radius', 'radii', 'rotation', 'textStyle'] as const;
 export type HoverKey = typeof HOVER_KEYS[number];
 
-export type RevealType = 'fade' | 'up' | 'left' | 'zoom';
-export interface Reveal { type: RevealType; duration: number; delay: number }
+export type RevealType = 'fade' | 'up' | 'left' | 'zoom' | 'words' | 'count';
+/** Erscheinen beim Scrollen. stagger: Elemente darin erscheinen nacheinander (Abstand in ms) */
+export interface Reveal { type: RevealType; duration: number; delay: number; stagger?: number }
+
+/** Bewegung beim Scrollen: amount je nach Art (Tiefe −100…100, Drehen in Grad, Wachsen in %) */
+export type ScrollFxKind = 'depth' | 'rotate' | 'grow' | 'focus' | 'stack' | 'sideways';
+/** Bewegung mit der Maus: amount = Stärke (Kippen in Grad, Magnet/Folgen in %) */
+export type MouseFxKind = 'tilt' | 'magnet' | 'follow';
+/** Dauernde Bewegung: speed = Sekunden pro Durchlauf, amount = Stärke */
+export type LoopFxKind = 'marquee' | 'float' | 'pulse';
+export interface Motion {
+  scroll?: { kind: ScrollFxKind; amount: number } | null;
+  mouse?: { kind: MouseFxKind; amount: number } | null;
+  loop?: { kind: LoopFxKind; speed: number; amount: number; reverse?: boolean } | null;
+}
 
 /** Eigenschaften, die sich nach dem Scrollen ändern dürfen (z. B. kleinere Kopfzeile, anderes Logo) */
 export const SCROLL_KEYS = [...HOVER_KEYS, 'w', 'h', 'layout', 'visible'] as const;
@@ -178,6 +191,8 @@ export interface WNode {
   hoverDuration?: number;
   /** Einblenden beim Scrollen */
   reveal?: Reveal | null;
+  /** Bewegung beim Scrollen, mit der Maus und dauerhaft */
+  motion?: Motion | null;
   /** Beim Scrollen fixieren */
   pin?: Pin | null;
   /** Abweichungen nach dem Scrollen (gelten für alle Breakpoints) */

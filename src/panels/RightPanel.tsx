@@ -31,6 +31,8 @@ import { clearGuides, defaultGrid, gridCols, setGrid, useView } from '../model/g
 import type { ColumnGrid } from '../model/types';
 import { HOVER_NAMES, withState } from '../model/hover';
 import { openPreview } from '../preview/bridge';
+import { hasFxTransform } from '../export/html';
+import { MotionSection } from './MotionSection';
 import type { Link, RevealType } from '../model/types';
 import { TYPO_KEYS, type ColorAsset } from '../model/types';
 
@@ -1359,9 +1361,8 @@ function ProtoTab() {
     <>
       {nodes.length === 1 && <FormSection node={nodes[0]} />}
       <LinkSection nodes={nodes} ids={ids} />
-      <HoverSection nodes={nodes} ids={ids} />
+      <MotionSection nodes={nodes} ids={ids} />
       <ScrollSection nodes={nodes} ids={ids} />
-      <RevealSection nodes={nodes} ids={ids} />
     </>
   );
 }
@@ -1436,33 +1437,6 @@ function LinkSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
   );
 }
 
-function HoverSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
-  const state = useEditor(s => s.interaction);
-  const keys = [...new Set(nodes.flatMap(n => Object.keys(n.hover ?? {})))];
-  const dur = common(nodes, n => n.hoverDuration ?? 200);
-  return (
-    <Section title="Hover" empty={!keys.length && state !== 'hover'}
-      actions={keys.length > 0 && <IconButton icon={<Icons.minus />} title="Hover-Effekt entfernen" onClick={() => setShared(ids, n => { n.hover = null; }, 'hover-del')} />}>
-      {keys.length > 0
-        ? <p className="proto-hint">Ändert beim Überfahren: {keys.map(k => HOVER_NAMES[k] ?? k).join(', ')}</p>
-        : <p className="proto-hint">Noch kein Hover-Effekt. Schalte im Reiter „Dokument“ auf <b>Zustand: Hover</b> und ändere z. B. die Farbe.</p>}
-      <div className="row">
-        <button className={`btn grow${state === 'hover' ? ' active' : ''}`}
-          onClick={() => useEditor.getState().setInteraction(state === 'hover' ? 'normal' : 'hover')}>
-          {state === 'hover' ? 'Hover-Bearbeitung beenden' : 'Hover-Zustand bearbeiten'}
-        </button>
-      </div>
-      {keys.length > 0 && (
-        <div className="row">
-          <span className="lbl">Übergang</span>
-          <NumberField title="Dauer des Übergangs" suffix="ms" min={0} max={3000} step={50} precision={0} value={dur}
-            onChange={v => setShared(ids, n => { n.hoverDuration = v; }, 'hover-dur')} />
-        </div>
-      )}
-    </Section>
-  );
-}
-
 // ---------- Beim Scrollen: fixieren + Aussehen nach dem Scrollen ----------
 
 type PinChoice = 'none' | 'sticky' | 'fixed';
@@ -1494,7 +1468,7 @@ function ScrollSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
   const instComp = inst ? page.nodes[inst]?.componentId : undefined;
   // „Schweben“ klappt nicht, wenn ein Eltern-Element gedreht, unscharf oder eingeblendet wird
   const blocker = one && pin?.mode === 'fixed'
-    ? (() => { for (let c = parent; c && c.parentId; c = c.parentId ? page.nodes[c.parentId] : undefined) if (c.rotation || c.blur || c.reveal) return c; return undefined; })()
+    ? (() => { for (let c = parent; c && c.parentId; c = c.parentId ? page.nodes[c.parentId] : undefined) if (c.rotation || c.blur || c.reveal || hasFxTransform(c)) return c; return undefined; })()
     : undefined;
 
   const setPin = (v: PinChoice) => setShared(ids, n => {
@@ -1583,34 +1557,3 @@ function ScrollSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
   );
 }
 
-const REVEALS: [RevealType, string][] = [['fade', 'Einblenden'], ['up', 'Von unten hereingleiten'], ['left', 'Von links hereingleiten'], ['zoom', 'Heranzoomen']];
-
-function RevealSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
-  const reveal = common(nodes, n => n.reveal ?? null);
-  const type = reveal === undefined ? 'mixed' : reveal ? reveal.type : 'none';
-  const set = (fn: (n: WNode) => void, key: string) => setShared(ids, fn, key);
-  return (
-    <Section title="Beim Scrollen einblenden" empty={type === 'none'}>
-      <div className="row">
-        <select className="select grow" aria-label="Animation" value={type}
-          onChange={e => {
-            const v = e.target.value as RevealType | 'none';
-            set(n => { n.reveal = v === 'none' ? null : { type: v, duration: n.reveal?.duration ?? 600, delay: n.reveal?.delay ?? 0 }; }, 'reveal');
-          }}>
-          {type === 'mixed' && <option value="mixed" disabled>Gemischt</option>}
-          <option value="none">Keine Animation</option>
-          {REVEALS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-      </div>
-      {reveal && (
-        <div className="row">
-          <NumberField label="Dauer" title="Dauer der Animation" suffix="ms" min={0} max={5000} step={50} precision={0} value={common(nodes, n => n.reveal?.duration)}
-            onChange={v => set(n => { if (n.reveal) n.reveal.duration = v; }, 'reveal-d')} />
-          <NumberField label="Verz." title="Verzögerung (z. B. für nacheinander erscheinende Elemente)" suffix="ms" min={0} max={5000} step={50} precision={0}
-            value={common(nodes, n => n.reveal?.delay)} onChange={v => set(n => { if (n.reveal) n.reveal.delay = v; }, 'reveal-dl')} />
-        </div>
-      )}
-      {reveal && <p className="proto-hint">Sichtbar in der Vorschau, wenn die Ebene beim Scrollen ins Bild kommt.</p>}
-    </Section>
-  );
-}

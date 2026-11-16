@@ -5,7 +5,7 @@ import type { WDocument, WNode } from '../model/types';
 import { slug } from '../model/css';
 import { fontHrefFor, type FontUse } from '../model/fonts';
 import { defaultSeo, defaultSite } from '../model/factory';
-import { BASE_CSS, EMBED_CSS, EMBED_JS, FORM_CSS, FORM_JS, NAV_CSS, NAV_JS, REVEAL_JS, scrollJs, classNames, esc, groupFonts, pageFiles, renderPageParts, siteRoot } from './html';
+import { BASE_CSS, EMBED_CSS, EMBED_JS, MOTION_CSS, MOTION_JS, FORM_CSS, FORM_JS, NAV_CSS, NAV_JS, REVEAL_JS, scrollJs, classNames, esc, groupFonts, pageFiles, renderPageParts, siteRoot } from './html';
 
 export interface ExportWarning { pageId: string | null; text: string }
 
@@ -156,6 +156,7 @@ export async function exportSite(doc: WDocument, opts: ExportOptions): Promise<E
   let anyNav = false;
   let anyForm = false;
   let anyEmbed = false;
+  let anyMotion = false;
   const allFonts: FontUse[] = [];
   const bodies: { pageId: string; file: string; html: string }[] = [];
   const favicon = libImage(site.favicon);
@@ -194,8 +195,9 @@ export async function exportSite(doc: WDocument, opts: ExportOptions): Promise<E
       '<link rel="stylesheet" href="css/style.css">',
       site.headCode?.trim() ? site.headCode.trim() : '',
     ].filter(Boolean).map(l => '  ' + l).join('\n');
-    const scripts = [/data-reveal=/.test(parts.body) ? REVEAL_JS : '', parts.scroll ? scrollJs(parts.scroll) : '', parts.nav ? NAV_JS : '', parts.form ? FORM_JS : '', parts.embed ? EMBED_JS : ''].filter(Boolean);
+    const scripts = [/data-reveal=/.test(parts.body) ? REVEAL_JS : '', parts.scroll ? scrollJs(parts.scroll) : '', parts.nav ? NAV_JS : '', parts.form ? FORM_JS : '', parts.embed ? EMBED_JS : '', parts.motion ? MOTION_JS : ''].filter(Boolean);
     if (parts.embed) anyEmbed = true;
+    if (parts.motion) anyMotion = true;
     if (parts.nav) anyNav = true;
     if (parts.form) anyForm = true;
     const reveal = scripts.length ? `\n<script>\n${scripts.join('\n')}\n</script>` : '';
@@ -236,7 +238,7 @@ export async function exportSite(doc: WDocument, opts: ExportOptions): Promise<E
     files['robots.txt'] = strToU8('User-agent: *\nAllow: /\n');
   }
 
-  files['css/style.css'] = strToU8(`/* Erstellt mit Webster */\n\n${BASE_CSS}\n\n${anyNav ? NAV_CSS + '\n\n' : ''}${anyForm ? FORM_CSS + '\n\n' : ''}${anyEmbed ? EMBED_CSS + '\n\n' : ''}${cssSections.join('\n\n')}\n${site.css?.trim() ? `\n/* ===== Eigenes CSS der Website ===== */\n\n${site.css.trim()}\n` : ''}`);
+  files['css/style.css'] = strToU8(`/* Erstellt mit Webster */\n\n${BASE_CSS}\n\n${anyNav ? NAV_CSS + '\n\n' : ''}${anyForm ? FORM_CSS + '\n\n' : ''}${anyEmbed ? EMBED_CSS + '\n\n' : ''}${anyMotion ? MOTION_CSS + '\n\n' : ''}${cssSections.join('\n\n')}\n${site.css?.trim() ? `\n/* ===== Eigenes CSS der Website ===== */\n\n${site.css.trim()}\n` : ''}`);
 
   const zipInput: Zippable = {};
   const folder = slug(site.name || doc.name) || 'website';
