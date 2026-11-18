@@ -7,6 +7,7 @@ import { currentPageHasRoot } from '../model/embed';
 import { uid } from '../model/factory';
 import { NumberField, Section, Seg } from '../ui/controls';
 import { newAnimation, openAnimation } from '../model/anim';
+import { insertAccordion, insertPopup, insertTabs } from '../model/sections';
 import { allPages } from '../model/pageRules';
 
 const S = () => useEditor.getState();
@@ -37,6 +38,9 @@ const BLOCKS: { label: string; tip: string; demo: string; run: () => void }[] = 
   { label: 'Vorher-Nachher', tip: 'Zwei Bilder übereinander mit Schieberegler', demo: 'fd-cmp', run: insertCompare },
   { label: 'Laufband', tip: 'Text läuft endlos durch', demo: 'fd-marquee', run: insertMarquee },
   { label: 'Zahl', tip: 'Eine große Zahl, die beim Erscheinen hochzählt', demo: 'fd-count', run: insertCounter },
+  { label: 'Akkordeon', tip: 'Einträge zum Auf- und Zuklappen – z. B. häufige Fragen', demo: 'fd-acc', run: insertAccordion },
+  { label: 'Reiter', tip: 'Mehrere Inhalte an einer Stelle, umschalten per Knopf', demo: 'fd-tabs', run: insertTabs },
+  { label: 'Pop-up', tip: 'Fenster über der Seite – öffnet per Knopf oder nach einer Wartezeit', demo: 'fd-pop', run: insertPopup },
 ];
 
 export function BlocksInsertSection() {

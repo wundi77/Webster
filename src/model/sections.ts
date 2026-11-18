@@ -6,6 +6,7 @@ import { BREAKPOINTS, createNode, defaultTextStyle, makeFill, makeLayout, makeSh
 import { applyEdit } from './resolve';
 import { appendChild } from './commands';
 import { siteRoot } from '../export/html';
+import { placeNew } from './embed';
 import { spaceOf } from './spacing';
 import { isFooter } from './css';
 import type { ColorAsset, Fill, Layout, Page, SpaceToken, TextTag, WDocument, WNode } from './types';
@@ -301,6 +302,128 @@ const contact = () => {
   return outer;
 };
 
+// ---------- Aufklappen, Reiter, Pop-up ----------
+
+function accordionBox(parent: WNode | null, items: [string, string][]): WNode {
+  const acc = box(parent, 'Akkordeon', { gap: 's', pad: [0, 0, 0, 0], w: 800, maxW: parent ? 860 : undefined, extra: { accordion: { single: true, firstOpen: false } } });
+  for (const [q, a] of items) {
+    const it = box(acc, q, { gap: 's', pad: [18, 22, 18, 22], fill: [paint('Fläche')], radius: 14 });
+    const head = box(it, 'Kopfzeile', { dir: 'row', gap: 'm', pad: [0, 0, 0, 0], align: 'center', justify: 'space-between' });
+    txt(head, q, { size: 18, weight: 600, name: 'Frage' });
+    const ic = txt(head, '+', { size: 24, weight: 400, role: 'Hauptfarbe', name: 'Symbol', align: 'center' });
+    ic.sizingH = 'auto';
+    txt(it, a, { size: 16, role: 'Text leise', name: 'Antwort' });
+  }
+  return acc;
+}
+
+const faq = () => {
+  const { outer, inner } = section('Fragen und Antworten', [paint('Hintergrund')]);
+  const c = inner({ gap: 'l', align: 'center', maxW: 860 });
+  txt(c, 'Häufige Fragen', { size: 40, weight: 800, tag: 'h2', align: 'center', name: 'Überschrift' });
+  accordionBox(c, [
+    ['Wie lange dauert es?', 'Meist nur wenige Tage. Schreib uns, dann sagen wir dir genau, wann es losgehen kann.'],
+    ['Was kostet das?', 'Das hängt vom Umfang ab. Die Preise oben geben dir einen guten Anhaltspunkt.'],
+    ['Kann ich später noch etwas ändern?', 'Ja, jederzeit. Sag einfach Bescheid.'],
+    ['Wie erreiche ich euch?', 'Per E-Mail oder Telefon – die Angaben findest du unten bei „Kontakt“.'],
+  ]);
+  return outer;
+};
+
+function tabsBox(): WNode {
+  const t = box(null, 'Reiter', { gap: 'l', pad: [0, 0, 0, 0], w: 900, extra: { tabs: {} } });
+  const bar = box(t, 'Reiter-Leiste', { dir: 'row', gap: 's', pad: [0, 0, 0, 0], align: 'center' });
+  const names = ['Erster Reiter', 'Zweiter Reiter', 'Dritter Reiter'];
+  for (const n of names) {
+    const b = box(bar, n, { dir: 'row', gap: 0, pad: [10, 18, 10, 18], align: 'center', fill: [paint('Fläche')], radius: 999, sizingH: 'auto' });
+    txt(b, n, { size: 15, weight: 600, name: n }).sizingH = 'auto';
+  }
+  names.forEach((n, i) => {
+    const pnl = box(t, `Inhalt ${i + 1}`, { gap: 's', pad: 'l', fill: [paint('Fläche')], radius: 20 });
+    txt(pnl, n, { size: 24, weight: 700, tag: 'h3', name: 'Titel' });
+    txt(pnl, `Hier steht der Inhalt zum ${n.split(' ')[0].toLowerCase()} Reiter. Ersetze ihn durch Text, Bilder oder ganze Abschnitte.`, { size: 16, role: 'Text leise', name: 'Text' });
+  });
+  return t;
+}
+
+function popupBox(): WNode {
+  const p = box(null, 'Pop-up', { gap: 'm', pad: 'xl', w: 480, align: 'center', fill: [paint('Hintergrund')], radius: 24,
+    extra: { popup: { open: 'link', delay: 5, once: true }, shadows: [{ ...makeShadow(), y: 24, blur: 60, opacity: 0.25 }] } });
+  txt(p, 'Schön, dass du da bist!', { size: 28, weight: 800, tag: 'h2', align: 'center', name: 'Überschrift' });
+  txt(p, 'Hier ist Platz für eine Nachricht, ein Angebot oder einen Hinweis.', { size: 16, role: 'Text leise', align: 'center', name: 'Text' });
+  button(p, 'Alles klar');
+  return p;
+}
+
+/** Baustein bauen und einfügen: in das ausgewählte Board (mit Layout) bzw. auf die Seite */
+function insertBuilt(build: () => WNode, opts: { free?: boolean; section?: string } = {}): string | null {
+  const s = useEditor.getState();
+  let made: string | null = null;
+  s.mutate((pg, d: WDocument) => {
+    C = { pg, colors: d.library.colors, space: spaceOf(d) };
+    const sel = s.selection.length === 1 ? pg.nodes[s.selection[0]] : undefined;
+    const intoBoard = sel?.type === 'board' && !sel.embed && !sel.nav;
+    let n = build();
+    // Direkt auf die Seite: in einen eigenen Abschnitt mit Rand und Höchstbreite
+    if (opts.section && !intoBoard) {
+      const inner0 = n;
+      const { outer, inner } = section(opts.section, [paint('Hintergrund')], 'l');
+      const c = inner({ gap: 0, align: 'center', maxW: 960 });
+      inner0.parentId = c.id; c.children.push(inner0.id); inner0.sizingH = 'fill';
+      n = outer;
+    }
+    delete pg.nodes[n.id];
+    if (opts.free) {
+      const root = siteRoot(pg);
+      if (!root) return;
+      pg.nodes[n.id] = n; n.parentId = root.id; n.absolute = true;
+      n.x = Math.round((root.w - n.w) / 2); n.y = 160;
+      n.overrides = { ...n.overrides, mobile: { ...n.overrides?.mobile, x: 20, w: 350 }, tablet: { ...n.overrides?.tablet, x: Math.round((768 - n.w) / 2) } };
+      root.children.push(n.id);
+      made = n.id;
+      return;
+    }
+    if (placeNew(pg, n, s.selection)) made = n.id;
+  }, { key: 'block-add' });
+  if (made) s.setSelection([made]);
+  return made;
+}
+
+export const insertAccordion = () => insertBuilt(() => accordionBox(null, [
+  ['Erste Frage', 'Die Antwort erscheint, wenn man auf die Frage klickt.'],
+  ['Zweite Frage', 'Jeder Eintrag hat eine Kopfzeile und einen Inhalt zum Aufklappen.'],
+  ['Dritte Frage', 'Weitere Einträge legst du rechts mit „Eintrag hinzufügen“ an.'],
+]), { section: 'Akkordeon-Abschnitt' });
+export const insertTabs = () => insertBuilt(tabsBox, { section: 'Reiter-Abschnitt' });
+export const insertPopup = () => insertBuilt(popupBox, { free: true });
+
+/** Neuer Eintrag im Akkordeon bzw. neuer Reiter (Kopie des letzten) */
+export function addPart(id: string) {
+  useEditor.getState().mutate(pg => {
+    const n = pg.nodes[id];
+    if (!n) return;
+    const src = n.tabs ? [pg.nodes[n.children[0]]?.children.at(-1), n.children.at(-1)] : [n.children.at(-1)];
+    for (const sid of src) {
+      if (!sid) continue;
+      const orig = pg.nodes[sid];
+      const copy = (nid: string, parent: string): string => {
+        const o = pg.nodes[nid];
+        const c: WNode = { ...JSON.parse(JSON.stringify(o)), id: Math.random().toString(36).slice(2, 10), parentId: parent, children: [] };
+        pg.nodes[c.id] = c;
+        c.children = o.children.map(k => copy(k, c.id));
+        return c.id;
+      };
+      const cid = copy(sid, orig.parentId!);
+      const par = pg.nodes[orig.parentId!];
+      par.children.splice(par.children.indexOf(sid) + 1, 0, cid);
+      const cn = pg.nodes[cid];
+      const num = par.children.length - (par.tabs ? 1 : 0);
+      if (n.tabs) { cn.name = par.id === n.id ? `Inhalt ${num}` : `Reiter ${num}`; const t = cn.children.map(k => pg.nodes[k]).find(k => k?.type === 'text'); if (t && par.id !== n.id) { t.text = `Reiter ${num}`; t.name = t.text; } }
+      else { cn.name = `Eintrag ${num}`; }
+    }
+  }, { key: 'part-add' });
+}
+
 export const SECTIONS: SectionDef[] = [
   { id: 'hero-center', group: 'Kopfbereich', label: 'Mittig', tip: 'Große Überschrift in der Mitte, darunter zwei Knöpfe', build: heroCenter },
   { id: 'hero-split', group: 'Kopfbereich', label: 'Mit Bild', tip: 'Text links, großes Bild rechts – auf dem Handy untereinander', build: heroSplit },
@@ -313,6 +436,7 @@ export const SECTIONS: SectionDef[] = [
   { id: 'quote', group: 'Vertrauen', label: 'Eine Stimme', tip: 'Ein großes Zitat mit Foto und Name', build: quote },
   { id: 'quotes', group: 'Vertrauen', label: 'Drei Stimmen', tip: 'Drei kurze Kundenstimmen mit Sternen', build: quotes3 },
   { id: 'pricing', group: 'Vertrauen', label: 'Preise', tip: 'Drei Pakete, das mittlere hervorgehoben', build: pricing },
+  { id: 'faq', group: 'Abschluss', label: 'Fragen', tip: 'Häufige Fragen zum Aufklappen (Akkordeon)', build: faq },
   { id: 'cta', group: 'Abschluss', label: 'Aufruf', tip: 'Farbiges Band mit Satz und Knopf', build: cta },
   { id: 'contact', group: 'Abschluss', label: 'Kontakt', tip: 'Text und Kontaktangaben', build: contact },
 ];

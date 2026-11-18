@@ -1,5 +1,6 @@
 import { SpaceChips } from '../ui/SpaceChips';
 import { SectionsInsertSection } from './SectionsInsert';
+import { AccordionSection, PopupSection, TabsSection, TooltipField } from './InteractiveSection';
 import { SPACE_NAMES, SPACE_TOKENS, setSpaceStep, spaceOf } from '../model/spacing';
 import { isAnimInstance } from '../model/animCore';
 import { PageSeoFields, SiteFields, useDialog } from './SiteSettings';
@@ -1586,6 +1587,9 @@ function ProtoTab() {
       {nodes.length === 1 && <FormSection node={nodes[0]} />}
       <LinkSection nodes={nodes} ids={ids} />
       {nodes.length === 1 && nodes[0].carousel && <CarouselSection node={nodes[0]} />}
+      {nodes.length === 1 && nodes[0].accordion && <AccordionSection node={nodes[0]} />}
+      {nodes.length === 1 && nodes[0].tabs && <TabsSection node={nodes[0]} />}
+      {nodes.length === 1 && nodes[0].popup && <PopupSection node={nodes[0]} />}
       {nodes.length === 1 && nodes[0].compare && <CompareSection node={nodes[0]} />}
       {nodes.length === 1 && nodes[0].lottie && <LottieSection node={nodes[0]} />}
       {nodes.length === 1 && nodes[0].componentId && <OwnAnimSection node={nodes[0]} />}
@@ -1606,6 +1610,7 @@ function LinkSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
   const set = (l: Link | null) => setShared(ids, n => { n.link = l; }, 'link');
   const targets = Object.values(page.nodes).filter(n => n.type === 'board' && n.parentId !== null && !ids.includes(n.id));
   const anims = Object.values(page.nodes).filter(n => isAnimInstance(n) && !ids.includes(n.id));
+  const pops = Object.values(page.nodes).filter(n => n.popup && !ids.includes(n.id));
   return (
     <Section title="Link" empty={type === 'none'}>
       <div className="row">
@@ -1618,6 +1623,7 @@ function LinkSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
             else if (v === 'url') set({ type: 'url', url: '', newTab: true });
             else if (v === 'email') set({ type: 'email', email: '' });
             else if (v === 'play') set({ type: 'play', nodeId: anims[0]?.id ?? '' });
+            else if (v === 'popup') set({ type: 'popup', nodeId: pops[0]?.id ?? '' });
           }}>
           {type === 'mixed' && <option value="mixed" disabled>Gemischt</option>}
           <option value="none">Kein Link</option>
@@ -1626,8 +1632,21 @@ function LinkSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
           <option value="url">Zu einer Webadresse</option>
           <option value="email">E-Mail schreiben</option>
           <option value="play">Animation starten</option>
+          <option value="popup">Pop-up öffnen</option>
         </select>
       </div>
+      {link?.type === 'popup' && (
+        <>
+          <div className="row">
+            <select className="select grow" aria-label="Welches Pop-up" value={link.nodeId} onChange={e => set({ type: 'popup', nodeId: e.target.value })}>
+              {!pops.length && <option value="">Kein Pop-up auf dieser Seite</option>}
+              {pops.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          {!pops.length && <p className="proto-hint">Füge zuerst unter „Elemente“ → „Bewegte Bausteine“ ein Pop-up ein.</p>}
+        </>
+      )}
+      <TooltipField nodes={nodes} ids={ids} />
       {link?.type === 'play' && (
         <>
           <div className="row">

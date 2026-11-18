@@ -338,6 +338,8 @@ function DepthLayers({ nodes }: { nodes: WNode[] }) {
   const kids = g ? g.children.map(c => page.nodes[c]).filter((k): k is WNode => !!k && k.visible) : [];
   if (!g || kids.length < 2) return null;
   const has = kids.some(k => k.motion?.scroll?.kind === 'depth');
+  // nur für übereinander liegende (frei angeordnete) Ebenen sinnvoll
+  if (!has && g.layout && kids.filter(k => k.absolute).length < 2) return null;
   const stagger = () => S().mutate(pg => {
     const list = g.children.map(c => pg.nodes[c]).filter((k): k is WNode => !!k && k.visible);
     const back = list.filter(k => k.type !== 'text');

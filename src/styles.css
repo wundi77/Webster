@@ -1144,3 +1144,16 @@ body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
 .alt-input:disabled { opacity: .5; }
 .fx-demo.fd-draw i { width: 28px; height: 2px; border-radius: 1px; transform-origin: left; animation: fdDraw 2s infinite; }
 @keyframes fdDraw { 0%, 15% { scale: 0 1; } 65%, 100% { scale: 1 1; } }
+.popup-badge { position: absolute; top: -22px; left: 0; padding: 2px 7px; border-radius: 4px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; pointer-events: none; white-space: nowrap; }
+.fx-demo.fd-acc { flex-direction: column; gap: 2px; }
+.fx-demo.fd-acc i, .fx-demo.fd-tabs i, .fx-demo.fd-pop i { display: block; }
+.fd-acc i { width: 30px; height: 4px; border-radius: 2px; }
+.fd-acc i:nth-child(2) { animation: fdAcc 2s infinite; }
+@keyframes fdAcc { 0%, 30% { height: 4px; } 60%, 100% { height: 10px; } }
+.fx-demo.fd-tabs { align-items: flex-start; padding-top: 5px; }
+.fd-tabs i { width: 9px; height: 4px; border-radius: 2px; opacity: .45; }
+.fd-tabs i:nth-child(1) { animation: fdTab 2s infinite; }
+.fd-tabs i:nth-child(2) { animation: fdTab 2s infinite reverse; }
+@keyframes fdTab { 0%, 45% { opacity: 1; } 55%, 100% { opacity: .35; } }
+.fd-pop i:nth-child(1) { width: 22px; height: 15px; border-radius: 3px; animation: fdZoom 2s infinite; }
+.fd-pop i + i { display: none !important; }

@@ -108,7 +108,9 @@ export type Link =
   | { type: 'url'; url: string; newTab: boolean }
   | { type: 'email'; email: string }
   /** Startet eine eigene Animation auf der Seite */
-  | { type: 'play'; nodeId: string };
+  | { type: 'play'; nodeId: string }
+  /** Öffnet ein Pop-up */
+  | { type: 'popup'; nodeId: string };
 
 /** Eigenschaften, die sich beim Überfahren mit der Maus ändern dürfen */
 export const HOVER_KEYS = ['fills', 'strokes', 'shadows', 'opacity', 'blur', 'radius', 'radii', 'rotation', 'textStyle', 'lift', 'scale'] as const;
@@ -223,6 +225,14 @@ export interface WNode {
   motion?: Motion | null;
   /** Karussell: die Elemente darin sind Folien zum Durchblättern (auto = Sekunden bis zur nächsten, null = aus) */
   carousel?: { auto: number | null; arrows: boolean; dots: boolean } | null;
+  /** Akkordeon: Kinder sind Einträge; im Eintrag ist das erste Kind die Kopfzeile, der Rest klappt auf. single = immer nur einer offen */
+  accordion?: { single: boolean; firstOpen: boolean } | null;
+  /** Reiter: erstes Kind = Reiter-Leiste (Knöpfe), danach je Reiter ein Inhalt */
+  tabs?: { } | null;
+  /** Pop-up: auf der Website versteckt, öffnet sich per Link oder nach einer Wartezeit */
+  popup?: { open: 'link' | 'delay'; delay: number; once: boolean } | null;
+  /** Hinweis-Text, der beim Darüberfahren erscheint */
+  tooltip?: string;
   /** Vorher-Nachher: zwei Ebenen übereinander, ein Schieberegler zeigt mehr von der einen oder anderen (pos in %) */
   compare?: { pos: number } | null;
   /** Die obere Ebene eines Vorher-Nachher-Vergleichs (wird ab der Reglerstelle gezeigt) */

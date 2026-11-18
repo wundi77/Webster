@@ -53,9 +53,9 @@ export const NodeView = memo(function NodeView({ id, parentLayout }: { id: strin
   const bgVideoId = node ? videoFillOf(node)?.videoRef : undefined;
   const bgVideoSrc = useEditor(s => (bgVideoId ? s.doc.library.videos.find(v => v.id === bgVideoId)?.src : undefined));
   // Karussell: nur eine Folie zeigen – die mit der Auswahl darin, sonst die zuletzt gewählte
-  const isCar = !!node?.carousel;
+  const isCar = !!node?.carousel || !!node?.tabs;
   const selSlide = useEditor(s => (isCar ? slideOf(pageOf(s), id, s.selection[0]) : -1));
-  const uiSlide = useSlides(s => (isCar ? s[id] ?? 0 : 0));
+  const uiSlide = useSlides(s => (isCar ? s[id] ?? (node?.tabs ? 1 : 0) : 0));
   // Eingebaute Animation: Inhalt in Originalgröße zeichnen und als Ganzes verkleinern/vergrößern
   const design = useEditor(s => { if (!node || !isAnimInstance(node)) return null; const d = animDesignSize(s.doc, node); return d ? `${d.w}x${d.h}` : null; });
   if (!node) return null;
@@ -121,15 +121,16 @@ export const NodeView = memo(function NodeView({ id, parentLayout }: { id: strin
     );
   }
   const childLayout = node.type === 'board' ? node.layout : null;
-  const shown = isCar ? Math.min(node.children.length - 1, Math.max(0, selSlide >= 0 ? selSlide : uiSlide)) : -1;
+  const shown = isCar ? Math.min(node.children.length - 1, Math.max(node.tabs ? 1 : 0, selSlide >= (node.tabs ? 1 : 0) ? selSlide : uiSlide)) : -1;
   return (
     <div className={cls} data-node-id={id} style={style}>
       {bgVideoSrc && <video className="bg-video" src={bgVideoSrc} muted playsInline preload="metadata" aria-hidden="true" />}
       {node.lottie && <LottieStill assetId={node.lottie.ref} />}
       {design ? <AnimScale design={design} w={node.w}>{node.children.map(c => <NodeView key={c} id={c} parentLayout={childLayout} />)}</AnimScale>
-        : node.children.map((c, i) => (shown < 0 || i === shown) && <NodeView key={c} id={c} parentLayout={childLayout} />)}
+        : node.children.map((c, i) => (shown < 0 || i === shown || (node.tabs && i === 0)) && <NodeView key={c} id={c} parentLayout={childLayout} />)}
       {node.compare && <div className="cmp-line" style={{ left: `${node.compare.pos}%` }} />}
-      {isCar && node.carousel!.dots && node.children.length > 1 && (
+      {node.popup && <span className="popup-badge" title="Pop-up: auf der Website versteckt, bis es geöffnet wird">Pop-up</span>}
+      {node.carousel && node.carousel.dots && node.children.length > 1 && (
         <div className="car-dots-canvas">{node.children.map((c, i) => <i key={c} className={i === shown ? 'on' : ''} />)}</div>
       )}
     </div>
