@@ -49,7 +49,9 @@ export function checkPages(doc: WDocument): Finding[] {
       if (n.type === 'text' && (n.text ?? '').trim()) {
         const f = n.fills.find(x => x.visible);
         const size = n.textStyle?.fontSize ?? 16, bold = (n.textStyle?.fontWeight ?? 400) >= 700;
-        const need = size >= 24 || (size >= 18.5 && bold) ? 3 : 4.5;
+        // große Schrift und reine Zeichen (★, +, „) brauchen weniger Kontrast
+        const symbol = !/[\p{L}\p{N}]/u.test(n.text ?? '');
+        const need = symbol || size >= 24 || (size >= 18.5 && bold) ? 3 : 4.5;
         for (const mode of darkOn ? [null, dark] : [null]) {
           const c = f && paintOf(f, mode);
           if (!c) continue;

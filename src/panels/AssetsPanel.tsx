@@ -257,8 +257,8 @@ function PaletteMenu() {
           {PALETTES.map(p => (
             <button key={p.id} type="button" className="palette-item" title={`„${p.name}“ anlegen. Gibt es die Farbrollen schon, werden sie ersetzt – überall, wo sie verwendet werden.`}
               onClick={() => { applyPalette(p); setOpen(false); }}>
-              <span className="palette-dots">{p.roles.map(r => <span key={r[0]} style={{ background: r[1] }} />)}</span>
-              <span className="palette-dots dark">{p.roles.map(r => <span key={r[0]} style={{ background: r[2] }} />)}</span>
+              <span className="palette-dots">{p.roles.slice(0, 6).map(r => <span key={r[0]} style={{ background: r[1] }} />)}</span>
+              <span className="palette-dots dark">{p.roles.slice(0, 6).map(r => <span key={r[0]} style={{ background: r[2] }} />)}</span>
               <span className="palette-name">{p.name}</span>
             </button>
           ))}

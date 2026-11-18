@@ -9,10 +9,11 @@ import { siteRoot } from '../export/html';
 import { placeNew } from './embed';
 import { spaceOf } from './spacing';
 import { isFooter } from './css';
+import { contrast } from './pageCheck';
 import type { ColorAsset, Fill, Layout, Page, SpaceToken, TextTag, WDocument, WNode } from './types';
 
-type Role = 'Hauptfarbe' | 'Akzent' | 'Hintergrund' | 'Fläche' | 'Text' | 'Text leise';
-const FALLBACK: Record<Role, string> = { Hauptfarbe: '#6A55F5', Akzent: '#FF7A59', Hintergrund: '#FFFFFF', Fläche: '#F4F2FF', Text: '#1C1B22', 'Text leise': '#5E5C6B' };
+type Role = 'Hauptfarbe' | 'Akzent' | 'Hintergrund' | 'Fläche' | 'Text' | 'Text leise' | 'Auf Hauptfarbe';
+const FALLBACK: Record<Role, string> = { Hauptfarbe: '#6A55F5', Akzent: '#FF7A59', Hintergrund: '#FFFFFF', Fläche: '#F4F2FF', Text: '#1C1B22', 'Text leise': '#5E5C6B', 'Auf Hauptfarbe': '#FFFFFF' };
 
 /** Bau-Umgebung: Seite, Farben, Abstände */
 interface Ctx { pg: Page; colors: ColorAsset[]; space: Record<SpaceToken, number> }
@@ -76,11 +77,11 @@ function txt(parent: WNode, t: string, o: { size?: number; weight?: number; role
 }
 
 function button(parent: WNode, label: string, kind: 'primary' | 'ghost' | 'light' = 'primary'): WNode {
-  const fill = kind === 'primary' ? [paint('Hauptfarbe')] : kind === 'light' ? [makeFill('#FFFFFF')] : [];
+  const fill = kind === 'primary' ? [paint('Hauptfarbe')] : kind === 'light' ? [paint('Auf Hauptfarbe')] : [];
   const b = box(parent, `Knopf „${label}“`, { dir: 'row', gap: 8, pad: [14, 26, 14, 26], align: 'center', justify: 'center', fill, radius: 999, sizingH: 'auto',
     extra: { link: { type: 'url', url: '#', newTab: false }, hover: { opacity: 0.85 } } });
   if (kind === 'ghost') { const t = paint('Text'); b.strokes = [{ ...makeStroke(), color: t.color, colorRef: t.colorRef, width: 1.5 }]; }
-  const t = txt(b, label, { size: 16, weight: 600, role: kind === 'primary' ? '#FFFFFF' : kind === 'light' ? 'Hauptfarbe' : 'Text', name: label });
+  const t = txt(b, label, { size: 16, weight: 600, role: kind === 'primary' ? 'Auf Hauptfarbe' : kind === 'light' ? 'Hauptfarbe' : 'Text', name: label });
   t.sizingH = 'auto';
   return b;
 }
@@ -136,14 +137,19 @@ const heroSplit = () => {
 const heroColor = () => {
   const main = C.colors.find(c => c.name === 'Hauptfarbe')?.color ?? FALLBACK.Hauptfarbe;
   const acc = C.colors.find(c => c.name === 'Akzent')?.color ?? FALLBACK.Akzent;
-  const g: Fill = { ...makeFill(main), gradient: { type: 'linear', angle: 135, stops: [{ id: 'a', color: main, opacity: 1, pos: 0 }, { id: 'b', color: acc, opacity: 1, pos: 1 }] }, move: 8 };
+  // zweite Verlaufsfarbe: Richtung Akzent, aber nur so weit, dass weiße Schrift gut lesbar bleibt (Verlauf wechselt im Dunkel-Modus nicht)
+  const mixHex = (a: string, b: string, t: number) => '#' + [1, 3, 5].map(i => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('');
+  const rgb = (h: string): [number, number, number] => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+  let end = main;
+  for (let t = 0.7; t >= 0; t -= 0.05) { const c = mixHex(main, acc, t); if (contrast(rgb(c), [255, 255, 255]) >= 4.6 && contrast(rgb(mixHex(main, c, 0.5)), [255, 255, 255]) >= 4.6) { end = c; break; } }
+  const g: Fill = { ...makeFill(main), gradient: { type: 'linear', angle: 135, stops: [{ id: 'a', color: main, opacity: 1, pos: 0 }, { id: 'b', color: end, opacity: 1, pos: 1 }] }, move: 8 };
   const { outer, inner } = section('Kopfbereich farbig', [g]);
   outer.fullscreen = { offset: 0, stay: false };
   outer.layout!.justify = 'center';
   for (const bp of ['tablet', 'mobile'] as const) { const l = outer.overrides?.[bp]?.layout; if (l) outer.overrides![bp]!.layout = { ...l, justify: 'center' }; }
   const c = inner({ gap: 'm', align: 'center', maxW: 900 });
   txt(c, 'Groß, farbig, unübersehbar', { size: 72, weight: 800, tag: 'h1', align: 'center', role: '#FFFFFF', name: 'Überschrift' });
-  txt(c, 'Der Hintergrund bewegt sich sanft. Er füllt beim Öffnen das ganze Fenster.', { size: 21, align: 'center', role: '#FFFFFF', name: 'Unterzeile' }).opacity = 0.88;
+  txt(c, 'Der Hintergrund bewegt sich sanft. Er füllt beim Öffnen das ganze Fenster.', { size: 21, align: 'center', role: '#FFFFFF', name: 'Unterzeile' });
   const r = box(c, 'Knöpfe', { dir: 'row', gap: 'm', pad: [16, 0, 0, 0], justify: 'center', align: 'center', sizingH: 'auto' });
   button(r, 'Los geht’s', 'light');
   return outer;
@@ -265,10 +271,10 @@ const pricing = () => {
   ];
   for (const [name, price, pts, hi] of plans) {
     const card = box(grid, `Paket ${name}`, { gap: 'm', pad: 'l', fill: [hi ? paint('Hauptfarbe') : paint('Fläche')], radius: 24 });
-    const fg = hi ? '#FFFFFF' : 'Text';
+    const fg = hi ? 'Auf Hauptfarbe' : 'Text';
     txt(card, name, { size: 18, weight: 700, role: fg, name: 'Name' });
     txt(card, price, { size: 48, weight: 800, role: fg, name: 'Preis' });
-    txt(card, 'pro Monat', { size: 14, role: hi ? '#FFFFFF' : 'Text leise', name: 'Zeitraum' }).opacity = hi ? 0.8 : 1;
+    txt(card, 'pro Monat', { size: 14, role: hi ? 'Auf Hauptfarbe' : 'Text leise', name: 'Zeitraum' });
     for (const p of pts) txt(card, `✓  ${p}`, { size: 16, role: fg, name: p });
     const b = button(card, 'Auswählen', hi ? 'light' : 'primary');
     b.sizingH = 'fill';
@@ -280,8 +286,8 @@ const cta = () => {
   const { outer, inner } = section('Aufruf', [paint('Hintergrund')], 'l');
   const band = inner({ dir: 'row', gap: 'l', pad: 'xl', align: 'center', justify: 'space-between', fill: [paint('Hauptfarbe')], radius: 28, stackMobile: true });
   const t = box(band, 'Text', { gap: 's', pad: [0, 0, 0, 0] });
-  txt(t, 'Bereit für den nächsten Schritt?', { size: 36, weight: 800, tag: 'h2', role: '#FFFFFF', name: 'Überschrift' });
-  txt(t, 'Schreib uns – wir melden uns schnell.', { size: 18, role: '#FFFFFF', name: 'Text' }).opacity = 0.85;
+  txt(t, 'Bereit für den nächsten Schritt?', { size: 36, weight: 800, tag: 'h2', role: 'Auf Hauptfarbe', name: 'Überschrift' });
+  txt(t, 'Schreib uns – wir melden uns schnell.', { size: 18, role: 'Auf Hauptfarbe', name: 'Text' });
   button(band, 'Jetzt anfragen', 'light');
   return outer;
 };
@@ -370,7 +376,11 @@ function insertBuilt(build: () => WNode, opts: { free?: boolean; section?: strin
       const { outer, inner } = section(opts.section, [paint('Hintergrund')], 'l');
       const c = inner({ gap: 0, align: 'center', maxW: 960 });
       inner0.parentId = c.id; c.children.push(inner0.id); inner0.sizingH = 'fill';
-      n = outer;
+      const root = siteRoot(pg);
+      if (!root) return;
+      placeSection(pg, root, outer, s.selection);
+      made = outer.id;
+      return;
     }
     delete pg.nodes[n.id];
     if (opts.free) {
@@ -441,6 +451,42 @@ export const SECTIONS: SectionDef[] = [
   { id: 'contact', group: 'Abschluss', label: 'Kontakt', tip: 'Text und Kontaktangaben', build: contact },
 ];
 
+/** Abschnitt auf der Seite einsetzen: leere Seite → „Untereinander“, sonst nach der Auswahl bzw. am Ende (vor der Fußzeile) */
+function placeSection(pg: Page, root: WNode, sec: WNode, selection: string[]) {
+  const s = { selection };
+  // Leere Seite ohne Anordnung: auf „Untereinander“ stellen, dann stapeln sich Abschnitte von selbst
+  if (!root.layout && !freeContent(pg, root)) {
+    const L = makeLayout('flex', 'column');
+    L.gap = 0; L.rowGap = 0; L.padding = [0, 0, 0, 0]; L.align = 'stretch';
+    root.layout = L;
+    const kids = root.children.map(k => pg.nodes[k]).filter(Boolean);
+    root.children = [...kids.filter(k => !isFooter(k)).sort((a, b) => a.y - b.y), ...kids.filter(k => isFooter(k))].map(k => k.id);
+    for (const k of kids) if (!k.pin) k.sizingH = 'fill';
+    root.sizingV = 'auto';
+  }
+  sec.parentId = root.id;
+  if (root.layout) {
+    sec.sizingH = 'fill';
+    // nach dem ausgewählten Abschnitt einfügen, sonst ans Ende (vor die Fußzeile)
+    const sel = s.selection.length === 1 ? s.selection[0] : null;
+    let top = sel ? pg.nodes[sel] : undefined;
+    while (top && top.parentId && top.parentId !== root.id) top = pg.nodes[top.parentId];
+    const at = top && top.parentId === root.id && !isFooter(top) ? root.children.indexOf(top.id) + 1 : -1;
+    if (at > 0) root.children.splice(at, 0, sec.id); else appendChild(pg, root.id, sec.id);
+  } else {
+    // Frei angeordnete Seite: volle Breite unter dem untersten Element, Fußzeile rückt nach unten
+    const bottom = Math.max(0, ...root.children.map(c => pg.nodes[c]).filter(c => c && !c.nav && !isFooter(c)).map(c => c.y + c.h));
+    sec.x = 0; sec.y = bottom; sec.w = root.w; sec.h = 640; sec.sizingV = 'fixed';
+    sec.overrides = { ...sec.overrides };
+    for (const b of BREAKPOINTS) if (b.id !== 'desktop' && b.width) sec.overrides[b.id] = { ...sec.overrides[b.id], x: 0, w: b.width };
+    const foot = root.children.map(c => pg.nodes[c]).find(c => c && isFooter(c));
+    if (foot) foot.y += sec.h;
+    root.h = Math.max(root.h, bottom + sec.h + (foot ? foot.h : 0));
+    const fi = foot ? root.children.indexOf(foot.id) : -1;
+    if (fi >= 0) root.children.splice(fi, 0, sec.id); else root.children.push(sec.id);
+  }
+}
+
 /** Hat die Seite außer Kopf-/Fußzeile noch frei platzierte Inhalte? */
 function freeContent(pg: Page, root: WNode) {
   return root.children.map(id => pg.nodes[id]).some(n => n && !n.nav && !isFooter(n) && !n.pin);
@@ -456,38 +502,8 @@ export function insertSection(id: string): string | null {
     const root = siteRoot(pg);
     if (!root) return;
     C = { pg, colors: d.library.colors, space: spaceOf(d) };
-    // Leere Seite ohne Anordnung: auf „Untereinander“ stellen, dann stapeln sich Abschnitte von selbst
-    if (!root.layout && !freeContent(pg, root)) {
-      const L = makeLayout('flex', 'column');
-      L.gap = 0; L.rowGap = 0; L.padding = [0, 0, 0, 0]; L.align = 'stretch';
-      root.layout = L;
-      const kids = root.children.map(k => pg.nodes[k]).filter(Boolean);
-      root.children = [...kids.filter(k => !isFooter(k)).sort((a, b) => a.y - b.y), ...kids.filter(k => isFooter(k))].map(k => k.id);
-      for (const k of kids) if (!k.pin) k.sizingH = 'fill';
-      root.sizingV = 'auto';
-    }
     const sec = def.build();
-    sec.parentId = root.id;
-    if (root.layout) {
-      sec.sizingH = 'fill';
-      // nach dem ausgewählten Abschnitt einfügen, sonst ans Ende (vor die Fußzeile)
-      const sel = s.selection.length === 1 ? s.selection[0] : null;
-      let top = sel ? pg.nodes[sel] : undefined;
-      while (top && top.parentId && top.parentId !== root.id) top = pg.nodes[top.parentId];
-      const at = top && top.parentId === root.id && !isFooter(top) ? root.children.indexOf(top.id) + 1 : -1;
-      if (at > 0) root.children.splice(at, 0, sec.id); else appendChild(pg, root.id, sec.id);
-    } else {
-      // Frei angeordnete Seite: volle Breite unter dem untersten Element, Fußzeile rückt nach unten
-      const bottom = Math.max(0, ...root.children.map(c => pg.nodes[c]).filter(c => c && !c.nav && !isFooter(c)).map(c => c.y + c.h));
-      sec.x = 0; sec.y = bottom; sec.w = root.w; sec.h = 640; sec.sizingV = 'fixed';
-      sec.overrides = { ...sec.overrides };
-      for (const b of BREAKPOINTS) if (b.id !== 'desktop' && b.width) sec.overrides[b.id] = { ...sec.overrides[b.id], x: 0, w: b.width };
-      const foot = root.children.map(c => pg.nodes[c]).find(c => c && isFooter(c));
-      if (foot) foot.y += sec.h;
-      root.h = Math.max(root.h, bottom + sec.h + (foot ? foot.h : 0));
-      const fi = foot ? root.children.indexOf(foot.id) : -1;
-      if (fi >= 0) root.children.splice(fi, 0, sec.id); else root.children.push(sec.id);
-    }
+    placeSection(pg, root, sec, s.selection);
     made = sec.id;
   }, { key: 'section-add' });
   if (made) s.setSelection([made]);
