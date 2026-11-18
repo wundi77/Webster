@@ -254,6 +254,7 @@ export function MotionSection({ nodes, ids }: { nodes: WNode[]; ids: string[] })
               </div>
             );
           })}
+          <HoverCombos nodes={nodes} onDone={() => { setPicking(false); setOpen('mouse'); }} />
           <p className="proto-hint">Pro Zeile ist eine Bewegung möglich – eine neue ersetzt die alte. Was hier fehlt, passt nicht zum ausgewählten Element.</p>
           <div className="fx-group">Selbst animieren</div>
           <OwnAnimButton nodes={nodes} onDone={() => setPicking(false)} />
@@ -269,6 +270,64 @@ export function MotionSection({ nodes, ids }: { nodes: WNode[]; ids: string[] })
             </>
       )}
     </Section>
+  );
+}
+
+/** Fertige Hover-Kombinationen für Karten: mehrere Teile reagieren zusammen */
+const COMBOS: { id: string; label: string; tip: string; demo: string }[] = [
+  { id: 'lift', label: 'Anheben', tip: 'Die Karte schwebt etwas nach oben, der Schatten wird größer', demo: 'fd-up' },
+  { id: 'zoom', label: 'Bild zoomt', tip: 'Das Bild in der Karte wird sanft größer (bleibt im Rahmen)', demo: 'fd-zoom' },
+  { id: 'both', label: 'Anheben + Bild', tip: 'Karte schwebt nach oben und das Bild darin zoomt', demo: 'fd-hover' },
+  { id: 'mark', label: 'Hervorheben', tip: 'Farbiger Rand, die Überschrift wechselt in die Hauptfarbe', demo: 'fd-fade' },
+];
+
+function applyCombo(pg: Page, card: WNode, id: string, colors: { id: string; name: string; color: string }[]) {
+  const main = colors.find(c => c.name === 'Hauptfarbe');
+  const mainFill = { color: main?.color ?? '#6A55F5', colorRef: main?.id ?? null };
+  const desc: WNode[] = [];
+  const walk = (n: WNode) => n.children.forEach(c => { const k = pg.nodes[c]; if (k) { desc.push(k); walk(k); } });
+  walk(card);
+  card.hoverGroup = true;
+  card.hoverDuration = card.hoverDuration ?? 300;
+  if (id === 'lift' || id === 'both') {
+    card.hover = { ...card.hover, lift: 6, shadows: [{ id: 'hl', kind: 'drop', x: 0, y: 16, blur: 36, spread: 0, color: '#000000', opacity: 0.16, visible: true }] };
+  }
+  if (id === 'zoom') card.hover = { lift: 0, ...card.hover };
+  if (id === 'zoom' || id === 'both') {
+    for (const im of desc.filter(d => d.type === 'image')) {
+      im.hover = { ...im.hover, scale: 1.08 }; im.hoverDuration = 500;
+      const par = im.parentId ? pg.nodes[im.parentId] : undefined;
+      // Bild bleibt im Rahmen: das umgebende Board schneidet ab
+      if (par && par.type === 'board') par.clip = true;
+    }
+  }
+  if (id === 'mark') {
+    card.hover = { ...card.hover, strokes: [{ id: 'hm', ...mainFill, opacity: 1, width: 2, position: 'inside', style: 'solid', visible: true }] };
+    const head = desc.find(d => d.type === 'text' && (d.textTag === 'h2' || d.textTag === 'h3' || (d.textStyle?.fontWeight ?? 400) >= 600));
+    if (head) head.hover = { ...head.hover, fills: [{ id: 'hf', ...mainFill, opacity: 1, visible: true }] };
+  }
+}
+
+function HoverCombos({ nodes, onDone }: { nodes: WNode[]; onDone: () => void }) {
+  if (!nodes.length || !nodes.every(n => n.type === 'board' && n.children.length > 0)) return null;
+  const hasImg = (n: WNode, pg: Page): boolean => n.children.some(c => pg.nodes[c]?.type === 'image' || (pg.nodes[c] ? hasImg(pg.nodes[c], pg) : false));
+  const pg = pageOf(S());
+  const img = nodes.every(n => hasImg(n, pg));
+  return (
+    <div>
+      <div className="fx-group">Hover-Kombination (alles reagiert zusammen)</div>
+      <div className="fx-tiles">
+        {COMBOS.filter(c => img || (c.id !== 'zoom' && c.id !== 'both')).map(c => (
+          <button key={c.id} type="button" className="fx-tile" title={c.tip} onClick={() => {
+            const colors = S().doc.library.colors;
+            S().mutate(p => { nodes.forEach(n => { const card = p.nodes[n.id]; if (card) applyCombo(p, card, c.id, colors); }); }, { key: 'hover-combo' });
+            onDone();
+          }}>
+            <span className={`fx-demo ${c.demo}`}><i /><i /><i /></span>{c.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -415,6 +474,20 @@ function Details({ cat, nodes, ids }: { cat: Cat; nodes: WNode[]; ids: string[] 
               {state === 'hover' ? 'Hover-Bearbeitung beenden' : 'Hover-Aussehen bearbeiten'}
             </button>
           </div>
+          <Row label="Anheben">
+            <NumberField title="Beim Überfahren so viele Pixel nach oben schweben" suffix="px" min={-40} max={40} step={1} precision={0}
+              value={common(nodes, n => n.hover?.lift ?? 0)} onChange={v => set(n => { n.hover = { ...n.hover, lift: v || undefined }; }, 'hover-lift')} />
+          </Row>
+          <Row label="Größe">
+            <NumberField title="Beim Überfahren vergrößern (100 % = normal)" suffix="%" min={50} max={200} step={1} precision={0}
+              value={common(nodes, n => Math.round((n.hover?.scale ?? 1) * 100))} onChange={v => set(n => { n.hover = { ...n.hover, scale: v === 100 ? undefined : v / 100 }; }, 'hover-scale')} />
+          </Row>
+          {nodes.every(n => n.type === 'board' && n.children.length > 0 && !n.link) && (
+            <label className="check" title="Fährt die Maus über dieses Element, zeigen auch die Teile darin (z. B. Bild, Pfeil, Text) ihr eigenes Hover-Aussehen – alles reagiert zusammen.">
+              <input type="checkbox" checked={nodes.every(n => n.hoverGroup)} onChange={e => set(n => { n.hoverGroup = e.target.checked || undefined; }, 'hover-group')} />
+              Hover gilt für alles darin
+            </label>
+          )}
           <Row label="Übergang">
             <NumberField title="Dauer des Übergangs in Sekunden" suffix="s" min={0} max={3} step={0.05} precision={2} value={dur === undefined ? undefined : dur / 1000}
               onChange={v => set(n => { n.hoverDuration = Math.round(v * 1000); }, 'hover-dur')} />

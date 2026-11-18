@@ -563,7 +563,10 @@ function renderPagePartsInner(ctx: PageCtx): PageParts {
       for (const k of Object.keys(h)) if (h[k] === 'unset' && !PAINT_RESET.has(k)) delete h[k];
       if (h.transform && hasFxTransform(n)) h.transform = `${h.transform} ${FX_TRANSFORM}`;
       if (n.type === 'text') addFont(n.hover!.textStyle);
-      const trigger = linkAncestor && linkAncestor !== n.id ? `${pre}.${ctx.cls(linkAncestor)}:hover .${cls}` : `${sel}:hover`;
+      let groupAnc: string | null = null;
+      if (!linkAncestor || linkAncestor === n.id) for (let a = parent; a; a = a.parentId ? page.nodes[a.parentId] : undefined) if (a.hoverGroup) { groupAnc = a.id; break; }
+      const trig = linkAncestor && linkAncestor !== n.id ? linkAncestor : groupAnc;
+      const trigger = trig ? `${pre}.${ctx.cls(trig)}:hover .${cls}, ${pre}.${ctx.cls(trig)}:focus-within .${cls}` : `${sel}:hover`;
       hoverRules.push(block(trigger, h, pretty));
     }
     if (hasScroll) {

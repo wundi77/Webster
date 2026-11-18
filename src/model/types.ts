@@ -111,7 +111,7 @@ export type Link =
   | { type: 'play'; nodeId: string };
 
 /** Eigenschaften, die sich beim Überfahren mit der Maus ändern dürfen */
-export const HOVER_KEYS = ['fills', 'strokes', 'shadows', 'opacity', 'blur', 'radius', 'radii', 'rotation', 'textStyle'] as const;
+export const HOVER_KEYS = ['fills', 'strokes', 'shadows', 'opacity', 'blur', 'radius', 'radii', 'rotation', 'textStyle', 'lift', 'scale'] as const;
 export type HoverKey = typeof HOVER_KEYS[number];
 
 export type RevealType = 'fade' | 'up' | 'left' | 'zoom' | 'words' | 'count' | 'draw';
@@ -203,6 +203,12 @@ export interface WNode {
   alt?: string;
   /** Fokuspunkt beim Zuschneiden (0…1), Standard Mitte */
   focus?: { x: number; y: number } | null;
+  /** Anheben in px (nur im Hover-Aussehen sinnvoll) */
+  lift?: number;
+  /** Vergrößern (1 = normal; nur im Hover-Aussehen sinnvoll) */
+  scale?: number;
+  /** Fährt die Maus über dieses Board, zeigen auch die Ebenen darin ihr Hover-Aussehen */
+  hoverGroup?: boolean;
   /** Beim Klick groß zeigen (mehrere solche Bilder nebeneinander: Galerie zum Blättern) */
   zoom?: boolean;
   /** Klick führt zu Seite, Abschnitt, Webadresse oder E-Mail */

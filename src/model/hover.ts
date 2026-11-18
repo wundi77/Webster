@@ -53,5 +53,6 @@ export const applyScrollEdit = stateEdit('scrolled', SCROLL_KEYS, ['x', 'y']);
 export const HOVER_NAMES: Record<string, string> = {
   fills: 'Füllung/Farbe', strokes: 'Kontur', shadows: 'Schatten', opacity: 'Deckkraft', blur: 'Unschärfe',
   radius: 'Eckenradius', radii: 'Eckenradien', rotation: 'Drehung', textStyle: 'Text',
+  lift: 'Anheben', scale: 'Größe',
   w: 'Breite', h: 'Höhe', layout: 'Layout/Abstände', visible: 'Sichtbarkeit',
 };

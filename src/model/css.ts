@@ -128,7 +128,13 @@ export function nodeCss(node: WNode, parent: Layout | null = null): Record<strin
 
   c['box-sizing'] = 'border-box';
   if (!node.visible) c['display'] = 'none';
-  if (node.rotation) c['transform'] = `rotate(${round(node.rotation)}deg)`;
+  {
+    const t: string[] = [];
+    if (node.lift) t.push(`translateY(${round(-node.lift)}px)`);
+    if (node.rotation) t.push(`rotate(${round(node.rotation)}deg)`);
+    if (node.scale && node.scale !== 1) t.push(`scale(${round(node.scale)})`);
+    if (t.length) c['transform'] = t.join(' ');
+  }
   if (node.opacity < 1) c['opacity'] = String(round(node.opacity, 3));
   if (node.blendMode !== 'normal') c['mix-blend-mode'] = node.blendMode;
 
