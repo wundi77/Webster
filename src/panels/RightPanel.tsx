@@ -1605,6 +1605,7 @@ function LinkSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
   const type = link === undefined ? 'mixed' : link ? link.type : 'none';
   const set = (l: Link | null) => setShared(ids, n => { n.link = l; }, 'link');
   const targets = Object.values(page.nodes).filter(n => n.type === 'board' && n.parentId !== null && !ids.includes(n.id));
+  const anims = Object.values(page.nodes).filter(n => isAnimInstance(n) && !ids.includes(n.id));
   return (
     <Section title="Link" empty={type === 'none'}>
       <div className="row">
@@ -1616,6 +1617,7 @@ function LinkSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
             else if (v === 'anchor') set({ type: 'anchor', nodeId: targets[0]?.id ?? '' });
             else if (v === 'url') set({ type: 'url', url: '', newTab: true });
             else if (v === 'email') set({ type: 'email', email: '' });
+            else if (v === 'play') set({ type: 'play', nodeId: anims[0]?.id ?? '' });
           }}>
           {type === 'mixed' && <option value="mixed" disabled>Gemischt</option>}
           <option value="none">Kein Link</option>
@@ -1623,8 +1625,20 @@ function LinkSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
           <option value="anchor">Zu einem Abschnitt</option>
           <option value="url">Zu einer Webadresse</option>
           <option value="email">E-Mail schreiben</option>
+          <option value="play">Animation starten</option>
         </select>
       </div>
+      {link?.type === 'play' && (
+        <>
+          <div className="row">
+            <select className="select grow" aria-label="Welche Animation" value={link.nodeId} onChange={e => set({ type: 'play', nodeId: e.target.value })}>
+              {!anims.length && <option value="">Keine Animation auf dieser Seite</option>}
+              {anims.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <p className="proto-hint">Beim Klick spielt die Animation von vorn. Soll sie nur per Knopf starten, stelle in der Animation „Startet: per Knopf“ ein.</p>
+        </>
+      )}
       {link?.type === 'page' && (
         <div className="row">
           <select className="select grow" aria-label="Zielseite" value={link.pageId} onChange={e => set({ type: 'page', pageId: e.target.value })}>

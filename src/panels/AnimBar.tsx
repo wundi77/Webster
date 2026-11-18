@@ -54,6 +54,8 @@ function AnimHead({ page, root, a, count }: { page: Page; root: WNode; a: AnimSe
           <option value="auto">sofort</option>
           <option value="hover">bei Maus darüber</option>
           <option value="click">beim Klicken</option>
+          <option value="scroll">beim Scrollen (folgt dem Bildlauf)</option>
+          <option value="button">per Knopf (Link „Animation starten“)</option>
         </select>
       </label>
       <label className="anim-opt">Wiederholen

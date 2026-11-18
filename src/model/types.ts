@@ -106,7 +106,9 @@ export type Link =
   | { type: 'page'; pageId: string }
   | { type: 'anchor'; nodeId: string }
   | { type: 'url'; url: string; newTab: boolean }
-  | { type: 'email'; email: string };
+  | { type: 'email'; email: string }
+  /** Startet eine eigene Animation auf der Seite */
+  | { type: 'play'; nodeId: string };
 
 /** Eigenschaften, die sich beim Überfahren mit der Maus ändern dürfen */
 export const HOVER_KEYS = ['fills', 'strokes', 'shadows', 'opacity', 'blur', 'radius', 'radii', 'rotation', 'textStyle'] as const;
@@ -279,7 +281,7 @@ export interface AnimSettings {
   /** einmal, immer wieder oder hin und zurück */
   repeat: 'once' | 'loop' | 'alternate';
   /** Start: sofort, wenn sie ins Bild kommt, bei Maus darüber, beim Klick */
-  play: 'auto' | 'view' | 'hover' | 'click';
+  play: 'auto' | 'view' | 'hover' | 'click' | 'scroll' | 'button';
 }
 
 /** Ab welcher Größe wird das Menü zum ☰-Symbol? */
