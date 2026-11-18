@@ -194,6 +194,7 @@ export async function exportSite(doc: WDocument, opts: ExportOptions): Promise<E
       faviconPath ? `<link rel="icon" href="${esc(faviconPath)}">` : '',
       '%%FONTS%%',
       '<link rel="stylesheet" href="css/style.css">',
+      site.analytics?.domain ? `<script defer data-domain="${esc(site.analytics.domain)}" src="${esc((site.analytics.host?.replace(/\/+$/, '') || 'https://plausible.io') + '/js/script.js')}"></script>` : '',
       site.headCode?.trim() ? site.headCode.trim() : '',
     ].filter(Boolean).map(l => '  ' + l).join('\n');
     const scripts = [/data-reveal=/.test(parts.body) ? REVEAL_JS : '', parts.scroll ? scrollJs(parts.scroll) : '', parts.nav ? NAV_JS : '', parts.form ? FORM_JS : '', parts.embed ? EMBED_JS : '', parts.motion ? MOTION_JS : ''].filter(Boolean);

@@ -1,5 +1,5 @@
 // Einstellungen für Suchmaschinen & Teilen (pro Seite) und für die ganze Website
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { create } from 'zustand';
 import { useEditor } from '../store';
 import type { PageSeo, SiteSettings } from '../model/types';
@@ -90,6 +90,38 @@ export function PageSeoFields({ pageId }: { pageId: string }) {
 }
 
 /** Name, Sprache, Adresse, Favicon der Website */
+/** Besucher-Statistik mit Plausible: nur die Domain eintragen */
+function AnalyticsFields() {
+  const a = useEditor(s => s.doc.site?.analytics ?? null);
+  const url = useEditor(s => s.doc.site?.url ?? '');
+  const guess = url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+  const clean = (v: string) => v.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const [own, setOwn] = useState(!!a?.host);
+  return (
+    <div className="field">
+      <div className="field-label">Besucher-Statistik (Plausible)</div>
+      <label className="check" style={{ marginTop: 0 }}>
+        <input type="checkbox" checked={!!a} onChange={e => setSite({ analytics: e.target.checked ? { domain: guess } : null }, 'analytics')} />
+        Besuche zählen – ohne Cookies, ohne Banner
+      </label>
+      {a && (
+        <>
+          <input className="textinput" style={{ marginTop: 6 }} value={a.domain} placeholder="meine-seite.de" spellCheck={false} aria-label="Domain bei Plausible"
+            onChange={e => setSite({ analytics: { ...a, domain: clean(e.target.value) } }, 'analytics')} />
+          <label className="check"><input type="checkbox" checked={own} onChange={e => { setOwn(e.target.checked); if (!e.target.checked) setSite({ analytics: { domain: a.domain } }, 'analytics'); }} /> Eigener Plausible-Server</label>
+          {own && <input className="textinput" style={{ marginTop: 6 }} value={a.host ?? ''} placeholder="https://statistik.meine-seite.de" spellCheck={false} aria-label="Adresse des eigenen Plausible-Servers"
+            onChange={e => setSite({ analytics: { ...a, host: e.target.value.trim() || undefined } }, 'analytics')} />}
+          <div className="field-hint">
+            1. Konto bei plausible.io anlegen (kostenpflichtig, mit Testzeit) und dort die Domain eintragen – genau so wie hier.
+            2. Website exportieren und hochladen. Die Zahlen siehst du dann bei Plausible. In der Vorschau wird nichts gezählt.
+            {!a.domain && ' Trage noch die Domain ein.'}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function SiteFields() {
   const raw = useEditor(s => s.doc.site);
   const site = { ...defaultSite(), ...raw };
@@ -116,6 +148,7 @@ export function SiteFields() {
       </div>
       <ImagePick label="Favicon" value={site.favicon} onChange={id => setSite({ favicon: id }, 'favicon')}
         hint="Das kleine Symbol im Browser-Tab. Ideal: quadratisch, mindestens 512 × 512 px (PNG oder SVG)." />
+      <AnalyticsFields />
     </>
   );
 }

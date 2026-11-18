@@ -390,6 +390,8 @@ export interface SiteSettings {
   motionStyle?: 'calm' | 'normal' | 'lively';
   /** Dunkel-Modus: folgt der Einstellung des Geräts (auto) */
   darkMode?: 'off' | 'auto';
+  /** Besucher-Statistik mit Plausible (ohne Cookies): Domain wie bei Plausible eingetragen, optional eigener Server */
+  analytics?: { domain: string; host?: string } | null;
   /** Abstands-Stufen in px (S, M, L, XL) */
   space?: SpaceScale;
 }

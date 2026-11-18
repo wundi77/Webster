@@ -139,6 +139,47 @@ export function servicesMissingInPolicy(doc: WDocument): EmbedKind[] {
   return usedServices(doc).filter(k => !txt.includes(EMBED_INFO[k].service!));
 }
 
+/** Abschnitt (Überschrift + Text) an die Datenschutzerklärung anhängen – im Stil der vorhandenen Abschnitte */
+function appendPolicy(pg: Page, items: { title: string; text: string; name: string }[]) {
+  const content = Object.values(pg.nodes).find(n => n.name === 'Inhalt' && n.type === 'board') ?? pg.nodes[siteRoot(pg)?.id ?? ''];
+  if (!content) return;
+  const tpl = Object.values(pg.nodes).find(n => n.type === 'text' && n.textStyle?.fontWeight === 700 && n.name === 'Zwischenüberschrift');
+  const body = Object.values(pg.nodes).find(n => n.type === 'text' && n.name === 'Text');
+  const font = tpl?.textStyle?.fontFamily ?? 'Inter';
+  for (const it of items) {
+    const sec = createNode('board', {
+      name: it.name, sizingH: 'fill', sizingV: 'auto', fills: [], clip: false, parentId: content.id,
+      layout: { type: 'flex', direction: 'column', wrap: false, gap: 6, rowGap: 6, padding: [0, 0, 0, 0], justify: 'start', align: 'start', justifyItems: 'stretch', columns: [], rows: [] },
+    });
+    const h = createNode('text', { ...(tpl ? { textStyle: { ...tpl.textStyle! }, fills: tpl.fills.map(f => ({ ...f, id: uid() })) } : {}), name: 'Zwischenüberschrift', text: it.title, sizingH: 'fill', sizingV: 'auto', parentId: sec.id });
+    if (!tpl) h.textStyle = { ...h.textStyle!, fontFamily: font, fontSize: 20, fontWeight: 700 };
+    const t = createNode('text', { ...(body ? { textStyle: { ...body.textStyle! }, fills: body.fills.map(f => ({ ...f, id: uid() })) } : {}), name: 'Text', sizingH: 'fill', sizingV: 'auto', parentId: sec.id, text: it.text });
+    pg.nodes[sec.id] = sec; pg.nodes[h.id] = h; pg.nodes[t.id] = t;
+    sec.children.push(h.id, t.id);
+    appendChild(pg, content.id, sec.id);
+  }
+}
+
+/** Fehlt in der Datenschutzerklärung der Abschnitt zur Besucher-Statistik? */
+export function analyticsMissingInPolicy(doc: WDocument): boolean {
+  if (!doc.site?.analytics?.domain) return false;
+  const page = findLegalPage(doc, 'datenschutz');
+  if (!page) return false;
+  return !Object.values(page.nodes).some(n => (n.text ?? '').includes('Plausible'));
+}
+
+export function addAnalyticsPolicy() {
+  const s = useEditor.getState();
+  const page = findLegalPage(s.doc, 'datenschutz');
+  if (!page) return;
+  const own = !!s.doc.site?.analytics?.host;
+  s.mutate((_, d) => {
+    const pg = d.pages.find(p => p.id === page.id)!;
+    appendPolicy(pg, [{ name: 'Plausible', title: 'Besucher-Statistik: Plausible Analytics', text:
+      `Diese Website nutzt Plausible Analytics${own ? ' auf einem eigenen Server' : ' (Plausible Insights OÜ, Estland; Server in der EU)'}, um zu sehen, wie viele Menschen welche Seiten besuchen. Plausible setzt keine Cookies und speichert keine personenbezogenen Daten. Die IP-Adresse wird nur kurz zur Berechnung einer anonymen, täglich wechselnden Kennung genutzt und nicht gespeichert. Erfasst werden u. a. aufgerufene Seite, Herkunftsseite, Land, Gerätetyp und Browser – nur als Gesamtzahlen. Rechtsgrundlage ist unser berechtigtes Interesse an einer datensparsamen Reichweitenmessung (Art. 6 Abs. 1 lit. f DSGVO). [Prüfen: an die eigene Situation anpassen]` }]);
+  });
+}
+
 /** Abschnitte für eingebettete Dienste an die Datenschutzerklärung anhängen */
 export function addPolicySections(kinds: EmbedKind[]) {
   const s = useEditor.getState();

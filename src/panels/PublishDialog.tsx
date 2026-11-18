@@ -9,7 +9,7 @@ import { downloadZip, exportSite, normalizeUrl } from '../export/site';
 import { addLegalFooter, createLegalPage, findLegalPage, fontPolicyMismatch, LEGAL, legalStatus, pagesWithPlaceholders, type LegalKind } from '../model/legal';
 import { fontInfo } from '../model/fonts';
 import { formsWithoutRecipient } from '../model/form';
-import { addPolicySections, EMBED_INFO, embedReady, servicesMissingInPolicy } from '../model/embed';
+import { addAnalyticsPolicy, addPolicySections, analyticsMissingInPolicy, EMBED_INFO, embedReady, servicesMissingInPolicy } from '../model/embed';
 import { useDialog } from './SiteSettings';
 import { slug } from '../model/css';
 import { checkPages, type Finding } from '../model/pageCheck';
@@ -77,6 +77,10 @@ function useChecks(): Check[] {
   if (missingSvc.length) out.push({ id: 'embed-policy', level: 'warn',
     text: <>Die Datenschutzerklärung erwähnt noch nicht: {missingSvc.map(k => EMBED_INFO[k].service).join(', ')}.</>,
     action: { label: 'Abschnitt einfügen', run: () => addPolicySections(missingSvc) } });
+  if (analyticsMissingInPolicy(doc)) out.push({ id: 'analytics-policy', level: 'warn',
+    text: <>Die Besucher-Statistik (Plausible) ist eingeschaltet, die Datenschutzerklärung erwähnt sie aber noch nicht.</>,
+    action: { label: 'Abschnitt einfügen', run: () => addAnalyticsPolicy() } });
+  if (doc.site?.analytics && !doc.site.analytics.domain) out.push({ id: 'analytics-domain', level: 'warn', text: <>Besucher-Statistik: Es fehlt noch die Domain.</>, action: { label: 'Einstellen', run: () => useDialog.getState().show('export', 'site') } });
   const empty = doc.pages.filter(p => !siteRoot(p));
   if (empty.length) out.push({ id: 'empty', level: 'warn', text: <>Ohne Inhalt (kein Board): {empty.map(p => p.name).join(', ')}.</>, action: { label: 'Seite öffnen', run: () => openPage(empty[0].id) } });
 
