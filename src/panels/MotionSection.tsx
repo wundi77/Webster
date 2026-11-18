@@ -6,6 +6,8 @@ import { HOVER_NAMES } from '../model/hover';
 import { absRect } from '../model/geometry';
 import { NumberField, Section, Seg, IconButton } from '../ui/controls';
 import { Icons } from '../ui/icons';
+import { animationFromSelection, openAnimation } from '../model/anim';
+import { isAnimInstance } from '../model/animCore';
 
 type Cat = 'appear' | 'scroll' | 'mouse' | 'loop';
 type Kind = RevealType | ScrollFxKind | MouseFxKind | LoopFxKind | 'hover';
@@ -240,14 +242,34 @@ export function MotionSection({ nodes, ids }: { nodes: WNode[]; ids: string[] })
             );
           })}
           <p className="proto-hint">Pro Zeile ist eine Bewegung möglich – eine neue ersetzt die alte. Was hier fehlt, passt nicht zum ausgewählten Element.</p>
+          <div className="fx-group">Selbst animieren</div>
+          <OwnAnimButton nodes={nodes} onDone={() => setPicking(false)} />
         </div>
       )}
       {!picking && (
         active.length
           ? <p className="proto-hint">Auf der Arbeitsfläche bleibt alles still – ▶ führt die Bewegung vor, in der Vorschau läuft sie echt. Wer auf dem Gerät „Bewegung reduzieren“ eingestellt hat, sieht eine ruhige Seite.</p>
-          : <button type="button" className="fx-add" onClick={() => setPicking(true)}><Icons.plus /> Bewegung hinzufügen</button>
+          : <>
+              <button type="button" className="fx-add" onClick={() => setPicking(true)}><Icons.plus /> Bewegung hinzufügen</button>
+              <OwnAnimButton nodes={nodes} />
+            </>
       )}
     </Section>
+  );
+}
+
+/** Eigene Animation: aus der Auswahl eine Animation machen (oder die eingebaute bearbeiten) */
+function OwnAnimButton({ nodes, onDone }: { nodes: WNode[]; onDone?: () => void }) {
+  const inst = nodes.length === 1 && isAnimInstance(nodes[0]) ? nodes[0] : null;
+  if (inst) {
+    return <button type="button" className="fx-add own" onClick={() => openAnimation(inst.componentId!)}><Icons.edit /> Animation bearbeiten</button>;
+  }
+  if (nodes.some(n => n.mainId || n.isMain || n.parentId === null)) return null;
+  return (
+    <button type="button" className="fx-add own" title="Die Auswahl wird zu einer eigenen Animation (Komponente) und der Animations-Editor mit Zeitleiste öffnet sich"
+      onClick={() => { if (animationFromSelection()) onDone?.(); }}>
+      <Icons.play /> Eigene Animation daraus machen
+    </button>
   );
 }
 

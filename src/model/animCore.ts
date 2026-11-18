@@ -2,10 +2,12 @@
 // Eine Animation ist eine Komponente, deren oberstes Board `animation` trägt. Ebenen darin haben `anim`:
 // je Eigenschaft eine Liste von Schlüsselbildern (absolute Werte). Zwischen zwei Schlüsselbildern wird überblendet.
 import { create } from 'zustand';
-import type { AnimEase, AnimKey, AnimProp, AnimSettings, AnimTracks, Page, WDocument, WNode } from './types';
+import type { AnimEase, AnimKey, AnimProp, AnimSettings, AnimTracks, Gradient, Page, VectorSpec, WDocument, WNode } from './types';
+import { colorAt } from './gradient';
+import { shapePoints } from './vectorCore';
 
-export const ANIM_PROPS: AnimProp[] = ['x', 'y', 'w', 'h', 'rotation', 'opacity', 'color'];
-export const PROP_NAMES: Record<AnimProp, string> = { x: 'Position X', y: 'Position Y', w: 'Breite', h: 'Höhe', rotation: 'Drehung', opacity: 'Deckkraft', color: 'Farbe' };
+export const ANIM_PROPS: AnimProp[] = ['x', 'y', 'w', 'h', 'rotation', 'opacity', 'color', 'gradient', 'radius', 'shape'];
+export const PROP_NAMES: Record<AnimProp, string> = { x: 'Position X', y: 'Position Y', w: 'Breite', h: 'Höhe', rotation: 'Drehung', opacity: 'Deckkraft', color: 'Farbe', gradient: 'Farbverlauf', radius: 'Ecken', shape: 'Form' };
 export const EASES: { id: AnimEase; name: string }[] = [
   { id: 'smooth', name: 'Weich' }, { id: 'linear', name: 'Gleichmäßig' }, { id: 'out', name: 'Abbremsen' },
   { id: 'in', name: 'Beschleunigen' }, { id: 'back', name: 'Federnd' }, { id: 'bounce', name: 'Springend' },
@@ -39,9 +41,71 @@ const hex = (c: string): [number, number, number] => {
 const toHex = (r: number, g: number, b: number) => '#' + [r, g, b].map(x => Math.round(Math.max(0, Math.min(255, x))).toString(16).padStart(2, '0')).join('').toUpperCase();
 function mix(a: number | string, b: number | string, p: number): number | string {
   if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * p;
+  if (String(a).startsWith('{')) {
+    const A = JSON.parse(String(a)), B = JSON.parse(String(b));
+    return JSON.stringify(A.stops ? mixGradient(A, B, p) : mixShape(A, B, p));
+  }
   const A = hex(String(a)), B = hex(String(b));
   return toHex(A[0] + (B[0] - A[0]) * p, A[1] + (B[1] - A[1]) * p, A[2] + (B[2] - A[2]) * p);
 }
+
+// ---------- Farbverlauf und Form überblenden ----------
+
+type G = Omit<Gradient, 'stops'> & { stops: { color: string; opacity: number; pos: number }[] };
+const gradientValue = (g: Gradient) => JSON.stringify({ type: g.type, angle: g.angle, stops: [...g.stops].sort((a, b) => a.pos - b.pos).map(s => ({ color: s.color.toUpperCase(), opacity: s.opacity, pos: s.pos })) });
+const asGradient = (v: string): Gradient => {
+  const g = JSON.parse(v) as G;
+  return { type: g.type, angle: g.angle, stops: g.stops.map((s, i) => ({ id: `a${i}`, color: s.color, opacity: s.opacity, pos: s.pos })) };
+};
+/** Zwei Verläufe überblenden: beide an denselben Stellen abtasten, dann Farbe für Farbe mischen */
+function mixGradient(A: G, B: G, p: number): G {
+  const pos = [...new Set([...A.stops.map(s => s.pos), ...B.stops.map(s => s.pos)])].sort((x, y) => x - y);
+  const ga = asGradient(JSON.stringify(A)), gb = asGradient(JSON.stringify(B));
+  let da = B.angle - A.angle;
+  if (da > 180) da -= 360; if (da < -180) da += 360;
+  return {
+    type: p < 0.5 ? A.type : B.type, angle: Math.round((A.angle + da * p) * 10) / 10,
+    stops: pos.map(x => {
+      const a = colorAt(ga, x), b = colorAt(gb, x);
+      return { color: String(mix(a.color, b.color, p)), opacity: Math.round((a.opacity + (b.opacity - a.opacity) * p) * 1000) / 1000, pos: x };
+    }),
+  };
+}
+
+type Shape = Pick<VectorSpec, 'kind' | 'sides' | 'innerRatio'> & { d?: string };
+const MORPH_N = 72;
+/** Umriss einer Form als gleichmäßig verteilte Punkte (beginnt oben) – so lassen sich verschiedene Formen ineinander umwandeln */
+function outline(s: Shape): [number, number][] {
+  const v = shapePoints(s);
+  const segs = v.map((pt, i) => { const q = v[(i + 1) % v.length]; return Math.hypot(q[0] - pt[0], q[1] - pt[1]); });
+  const total = segs.reduce((a, b) => a + b, 0) || 1;
+  // Punkte je Kante nach Länge verteilen – jede Ecke ist selbst ein Punkt, damit Spitzen spitz bleiben
+  const cnt = segs.map(l => Math.max(1, Math.round((l / total) * MORPH_N)));
+  let diff = MORPH_N - cnt.reduce((a, b) => a + b, 0);
+  while (diff !== 0) {
+    const order = segs.map((l, i) => [l / cnt[i], i] as [number, number]).sort((x, y) => (diff > 0 ? y[0] - x[0] : x[0] - y[0]));
+    const i = order.find(([, j]) => diff > 0 || cnt[j] > 1)![1];
+    cnt[i] += diff > 0 ? 1 : -1;
+    diff += diff > 0 ? -1 : 1;
+  }
+  const out: [number, number][] = [];
+  v.forEach((a, i) => {
+    const b = v[(i + 1) % v.length];
+    for (let k = 0; k < cnt[i]; k++) { const f = k / cnt[i]; out.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]); }
+  });
+  return out;
+}
+const pathOf = (pts: [number, number][]) => 'M' + pts.map(p => `${Math.round(p[0] * 100) / 100} ${Math.round(p[1] * 100) / 100}`).join('L') + 'Z';
+function mixShape(A: Shape, B: Shape, p: number): Shape {
+  const a = outline(A), b = outline(B);
+  const pts = a.map((q, i) => [q[0] + (b[i][0] - q[0]) * p, q[1] + (b[i][1] - q[1]) * p] as [number, number]);
+  const near = p < 0.5 ? A : B;
+  return { kind: near.kind, sides: near.sides, innerRatio: near.innerRatio, d: pathOf(pts) };
+}
+/** Pfad einer Form (für die fertige Website immer mit gleich vielen Punkten, damit er sich umwandeln lässt) */
+export const morphPath = (v: string) => { const s = JSON.parse(v) as Shape; return s.d ?? pathOf(outline(s)); };
+const shapeValue = (v: VectorSpec) => JSON.stringify({ kind: v.kind, sides: Math.round(v.sides), innerRatio: Math.round(v.innerRatio * 1000) / 1000 });
+const isMorphable = (n: WNode) => n.type === 'vector' && (n.vector?.kind === 'polygon' || n.vector?.kind === 'star');
 
 /** Wert einer Spur zur Zeit t */
 export function valueAt(keys: AnimKey[], t: number): number | string {
@@ -61,6 +125,10 @@ export function valueAt(keys: AnimKey[], t: number): number | string {
 /** Grundwert einer Eigenschaft (ohne Animation) */
 export function baseValue(n: WNode, p: AnimProp): number | string | undefined {
   if (p === 'color') { const f = n.fills[0]; return f && !f.gradient ? f.color : undefined; }
+  // Verlauf: nur bei Flächen (bei Formen und Icons steckt er in der Grafik)
+  if (p === 'gradient') { const f = n.fills[0]; return f?.gradient && n.type !== 'vector' && !f.kind ? gradientValue(f.gradient) : undefined; }
+  if (p === 'radius') return n.type === 'rect' || n.type === 'board' || n.type === 'image' ? n.radius : undefined;
+  if (p === 'shape') return isMorphable(n) ? shapeValue(n.vector!) : undefined;
   return n[p];
 }
 
@@ -80,7 +148,12 @@ export function withAnim(n: WNode, t: number): WNode {
     const v = valueAt(k, t);
     if (p === 'color') {
       if (r.fills[0] && !r.fills[0].gradient) r.fills = [{ ...r.fills[0], color: String(v) }, ...r.fills.slice(1)];
-    } else (r as unknown as Record<string, number>)[p] = p === 'opacity' ? Math.max(0, Math.min(1, Number(v))) : p === 'rotation' ? Number(v) : Math.round(Number(v) * 100) / 100;
+    } else if (p === 'gradient') {
+      if (r.fills[0]?.gradient) { const g = asGradient(String(v)); r.fills = [{ ...r.fills[0], gradient: g, color: g.stops[0]?.color ?? r.fills[0].color }, ...r.fills.slice(1)]; }
+    } else if (p === 'shape') {
+      if (r.vector) { const s = JSON.parse(String(v)) as Shape; r.vector = { ...r.vector, kind: s.kind, sides: s.sides, innerRatio: s.innerRatio, path: s.d }; }
+    } else if (p === 'radius') r.radius = Math.max(0, Math.round(Number(v) * 10) / 10);
+    else (r as unknown as Record<string, number>)[p] = p === 'opacity' ? Math.max(0, Math.min(1, Number(v))) : p === 'rotation' ? Number(v) : Math.round(Number(v) * 100) / 100;
   }
   cache.set(n, { t, r });
   return r;
@@ -200,6 +273,8 @@ export function recordAnim(prev: Page, page: Page, t: number) {
 /** Grundwert zurücksetzen (die Änderung steckt jetzt im Schlüsselbild) */
 function restore(n: WNode, p: AnimProp, v: number | string) {
   if (p === 'color') { if (n.fills[0]) n.fills[0].color = String(v); }
+  else if (p === 'gradient') { if (n.fills[0]) { const g = asGradient(String(v)); n.fills[0].gradient = g; n.fills[0].color = g.stops[0]?.color ?? n.fills[0].color; } }
+  else if (p === 'shape') { if (n.vector) { const s = JSON.parse(String(v)) as Shape; n.vector.kind = s.kind; n.vector.sides = s.sides; n.vector.innerRatio = s.innerRatio; delete n.vector.path; } }
   else (n as unknown as Record<string, unknown>)[p] = v;
 }
 
@@ -219,16 +294,18 @@ export function animPageAt(page: Page, t: number): Page {
 }
 
 /** Zeitpunkte zum Abtasten für die fertige Website (Schlüsselbilder + Zwischenschritte bei Kurven) */
-export function sampleTimes(n: WNode, dur: number): number[] {
+export function sampleTimes(n: WNode, dur: number, props: AnimProp[] = ANIM_PROPS): number[] {
   const ts = new Set<number>([0, dur]);
-  for (const p of ANIM_PROPS) {
+  for (const p of props) {
     const keys = n.anim?.[p];
     if (!keys?.length) continue;
+    // Verläufe und Formen lassen sich im Browser nicht von selbst überblenden: dicht abtasten (30 Bilder pro Sekunde)
+    const dense = p === 'gradient' || p === 'shape';
     keys.forEach((k, i) => {
       ts.add(k.t);
       const nx = keys[i + 1];
-      if (nx && (k.ease ?? 'smooth') !== 'linear') {
-        const steps = k.ease === 'bounce' || k.ease === 'back' ? 20 : 12;
+      if (nx && (dense || (k.ease ?? 'smooth') !== 'linear')) {
+        const steps = dense ? Math.max(2, Math.ceil((nx.t - k.t) * 30)) : k.ease === 'bounce' || k.ease === 'back' ? 20 : 12;
         for (let j = 1; j < steps; j++) ts.add(k.t + ((nx.t - k.t) * j) / steps);
       }
     });

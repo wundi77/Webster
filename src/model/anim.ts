@@ -1,7 +1,8 @@
 // Eigene Animationen: Befehle (Anlegen, Zustände, Schlüsselbilder, Abspielen)
 import { useEditor, pageOf } from '../store';
 import { createNode, createPage, makeFill, uid } from './factory';
-import { openComponent } from './library';
+import { createComponent, openComponent } from './library';
+import { isPageBoard } from './pageRules';
 import { animDuration, animRootOf, ANIM_PROPS, baseValue, easeAt, putKey, setAnimTime, setBase, useAnimClock, valueAt, withoutRecording } from './animCore';
 import type { AnimEase, AnimKey, AnimProp, AnimSettings, Page, WNode } from './types';
 
@@ -69,6 +70,56 @@ export function newAnimation() {
   page.rootIds = [board.id];
   s.mutate((_, d) => { (d.componentPages ??= []).push(page); }, { system: true });
   openAnimation(board.id);
+}
+
+/**
+ * Aus der Auswahl auf der Fläche eine eigene Animation machen:
+ * die Auswahl zieht in eine neue Animations-Komponente um (mit etwas Spielraum rundherum),
+ * an ihrer Stelle bleibt die eingebaute Animation – dann öffnet sich der Animations-Editor.
+ */
+export const ANIM_MARGIN = 40;
+export function animationFromSelection(): boolean {
+  const s = S();
+  const page = pageOf(s);
+  const ids = s.selection.filter(id => page.nodes[id]);
+  if (!ids.length) return false;
+  if (ids.some(id => isPageBoard(page, id) || page.nodes[id].parentId === null)) {
+    alert('Das ganze Seiten-Board kann keine Animation werden. Wähle die Elemente darin aus.');
+    return false;
+  }
+  if (ids.some(id => page.nodes[id].mainId || page.nodes[id].isMain)) {
+    alert('Komponenten und ihre Kopien können nicht direkt zur Animation werden. Löse die Kopie vorher (⇧⌘K).');
+    return false;
+  }
+  createComponent();
+  const instId = S().selection[0];
+  const inst = pageOf(S()).nodes[instId];
+  const mainId = inst?.componentId;
+  if (!inst || !mainId) return false;
+  const names = new Set((S().doc.componentPages ?? []).map(p => p.nodes[p.rootIds[0]]?.name));
+  let k = 1;
+  while (names.has(`Animation ${k}`)) k++;
+  const m = ANIM_MARGIN;
+  S().mutate((pg, d) => {
+    const cp = (d.componentPages ?? []).find(p => p.nodes[mainId]);
+    const main = cp?.nodes[mainId];
+    if (!cp || !main) return;
+    // Spielraum rundherum, damit sich die Teile bewegen können
+    main.w += 2 * m; main.h += 2 * m;
+    for (const c of main.children) { const ch = cp.nodes[c]; if (ch) { ch.x += m; ch.y += m; } }
+    main.layout = null; main.clip = false;
+    if (/^Komponente \d+$/.test(main.name) || /^(Board|Rechteck|Ellipse|Text|Bild|Kreis)( \d+)?$/.test(main.name)) main.name = `Animation ${k}`;
+    main.animation = {
+      states: [{ id: uid(), name: 'Start', t: 0, ease: 'smooth' }, { id: uid(), name: 'Ende', t: 1, ease: 'smooth' }],
+      repeat: 'once', play: 'view',
+    };
+    const i = pg.nodes[instId];
+    if (i) { i.x -= m; i.y -= m; i.name = main.name; }
+  }, { system: true });
+  openAnimation(mainId);
+  // gleich beim „Ende“ beginnen: Änderungen werden dann zur Bewegung
+  setTimeout(() => setAnimTime(1), 30);
+  return true;
 }
 
 export function openAnimation(mainId: string) {

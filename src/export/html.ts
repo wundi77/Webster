@@ -9,7 +9,7 @@ import { BREAKPOINTS } from '../model/factory';
 import { EMBED_INFO, embedOpenUrl, embedSrc } from '../model/embedCore';
 import { VECTOR_PAINT_CSS, vectorSvg } from '../model/vectorCore';
 import { LOTTIE_PLAYER } from './lottiePlayer';
-import { animDesignSize, isAnimated, isAnimInstance, sampleTimes, subtreeDuration, withAnim } from '../model/animCore';
+import { animDesignSize, isAnimated, isAnimInstance, morphPath, sampleTimes, subtreeDuration, valueAt, withAnim } from '../model/animCore';
 
 type Css = Record<string, string>;
 
@@ -463,6 +463,33 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     return c;
   };
 
+  /** Zu welcher Animation gehört die Ebene, und wie lange dauert sie? */
+  const animOwner = (n: WNode, parent: WNode | undefined) => {
+    let owner: WNode | undefined = parent;
+    while (owner && !owner.animation) owner = page.nodes[owner.parentId ?? ''];
+    return { owner, dur: Math.round((owner ? subtreeDuration(page, owner.id) : subtreeDuration(page, n.id)) * 1000) / 1000 };
+  };
+  /** Form-Umwandlung (Vieleck ↔ Stern …) als SVG-Animation, die zusammen mit der übrigen Animation startet */
+  const morphSvg = (n: WNode, parent: WNode | undefined): string => {
+    const svg = vectorSvg(n);
+    const keys = n.anim?.shape;
+    if (!keys || keys.length < 2) return svg;
+    const { owner, dur } = animOwner(n, parent);
+    const ts = sampleTimes(n, dur, ['shape']);
+    let vals = ts.map(tt => morphPath(String(valueAt(keys, tt))));
+    let kt = ts.map(tt => Math.round((tt / dur) * 10000) / 10000);
+    const rep = owner?.animation?.repeat ?? 'once';
+    let d = dur;
+    if (rep === 'alternate') {
+      vals = [...vals, ...vals.slice(0, -1).reverse()];
+      kt = [...kt.map(k => k / 2), ...kt.slice(0, -1).reverse().map(k => 1 - k / 2)].map(k => Math.round(k * 10000) / 10000);
+      d = dur * 2;
+    }
+    hasMotion = true;
+    const anim = `<animate class="wa-smil" attributeName="d" values="${vals.join(';')}" keyTimes="${kt.join(';')}" dur="${d}s" begin="indefinite" fill="freeze" calcMode="linear" repeatCount="${rep === 'once' ? 1 : 'indefinite'}" data-end="${vals[rep === 'alternate' ? 0 : vals.length - 1]}"/>`;
+    return svg.replace(/<path d="[^"]*"( vector-effect="non-scaling-stroke")\/>/, `<path d="${vals[0]}"$1>${anim}</path>`);
+  };
+
   const el = (id: string, parent: WNode | undefined, linkAncestor: string | null, depth: number): string => {
     const n = page.nodes[id];
     if (!n) return '';
@@ -556,9 +583,7 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     // Eigene Animation: Schlüsselbilder als CSS-Animation
     if (n.animation) { attrs.push(`data-anim="${n.animation.play}"`); hasMotion = true; }
     if (isAnimated(n)) {
-      let owner: WNode | undefined = parent;
-      while (owner && !owner.animation) owner = page.nodes[owner.parentId ?? ''];
-      const dur = Math.round((owner ? subtreeDuration(page, owner.id) : subtreeDuration(page, n.id)) * 1000) / 1000;
+      const { owner, dur } = animOwner(n, parent);
       const rn = resolveNode(n, 'desktop');
       const pl = parent ? resolveNode(parent, 'desktop').layout : null;
       const baseCss = nodeCss(rn, pl);
@@ -698,7 +723,7 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     if (n.type === 'vector') {
       // Icon ohne Text als Link: Ebenenname als Beschriftung für Screenreader
       if (tag === 'a') attrs.push(`aria-label="${esc(n.name)}"`);
-      return `${pad}<${tag} ${attrs.join(' ')}>${vectorSvg(n)}</${tag}>`;
+      return `${pad}<${tag} ${attrs.join(' ')}>${morphSvg(n, parent)}</${tag}>`;
     }
     const owner = n.navLinks ? navOwnerOf(n.id) : undefined;
     const nav = owner?.nav;
@@ -882,6 +907,6 @@ export function pageFiles(doc: WDocument): Map<string, string> {
 const ANIM_CSS = `[data-anim]:not(.wa-on) [data-wa]{animation-play-state:paused}
 [data-anim].wa-off [data-wa]{animation:none!important}
 @media (prefers-reduced-motion: reduce){[data-wa]{animation-duration:1ms!important;animation-iteration-count:1!important;animation-direction:normal!important}}`;
-const ANIM_JS = `(function(){var D=document,R=matchMedia('(prefers-reduced-motion: reduce)').matches;[].forEach.call(D.querySelectorAll('[data-anim]'),function(el){var m=el.getAttribute('data-anim'),go=function(){el.classList.add('wa-off');void el.offsetWidth;el.classList.remove('wa-off');el.classList.add('wa-on')};if(R||m==='auto'||!('IntersectionObserver' in window)&&m==='view'){el.classList.add('wa-on');return}if(m==='view'){var io=new IntersectionObserver(function(e){e.forEach(function(x){if(x.isIntersecting){el.classList.add('wa-on');io.disconnect()}})},{threshold:.3});io.observe(el);return}if(m==='hover'){el.addEventListener('mouseenter',go);el.addEventListener('focusin',go);return}if(m==='click'){el.style.cursor='pointer';el.addEventListener('click',go)}})})();`;
+const ANIM_JS = `(function(){var D=document,R=matchMedia('(prefers-reduced-motion: reduce)').matches,each=function(el,f){[].forEach.call(el.querySelectorAll('.wa-smil'),f)},smil=function(el){each(el,function(a){if(R){a.parentNode.setAttribute('d',a.getAttribute('data-end'));return}try{a.beginElement()}catch(e){}})};[].forEach.call(D.querySelectorAll('[data-anim]'),function(el){var m=el.getAttribute('data-anim'),on=function(){el.classList.add('wa-on');smil(el)},go=function(){el.classList.add('wa-off');void el.offsetWidth;el.classList.remove('wa-off');on()};if(R||m==='auto'||!('IntersectionObserver' in window)&&m==='view'){on();return}if(m==='view'){var io=new IntersectionObserver(function(e){e.forEach(function(x){if(x.isIntersecting){on();io.disconnect()}})},{threshold:.3});io.observe(el);return}if(m==='hover'){el.addEventListener('mouseenter',go);el.addEventListener('focusin',go);return}if(m==='click'){el.style.cursor='pointer';el.addEventListener('click',go)}})})();`;
 export const MOTION_CSS = MOTION_CSS_BASE + '\n' + ANIM_CSS;
 export const MOTION_JS = MOTION_JS_BASE + '\n' + ANIM_JS;

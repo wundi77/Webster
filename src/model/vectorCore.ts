@@ -28,7 +28,7 @@ export function vectorName(v: VectorSpec): string {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Punkte eines Vielecks/Sterns, auf das Feld 0–100 gestreckt */
-function shapePoints(v: VectorSpec): [number, number][] {
+export function shapePoints(v: Pick<VectorSpec, 'kind' | 'sides' | 'innerRatio'>): [number, number][] {
   const n = Math.max(3, Math.round(v.sides || 3));
   const pts: [number, number][] = [];
   const star = v.kind === 'star';
@@ -92,7 +92,7 @@ export function vectorSvg(n: Pick<WNode, 'id' | 'vector'> & Partial<Pick<WNode, 
   if (!v) return '';
   const defs = gradientDefs(n);
   if (v.kind === 'polygon' || v.kind === 'star') {
-    return `<svg ${SVG_BASE} viewBox="0 0 100 100" preserveAspectRatio="none">${defs}<path d="${shapePath(v)}" vector-effect="non-scaling-stroke"/></svg>`;
+    return `<svg ${SVG_BASE} viewBox="0 0 100 100" preserveAspectRatio="none">${defs}<path d="${v.path ?? shapePath(v)}" vector-effect="non-scaling-stroke"/></svg>`;
   }
   const sw = r2(Math.max(0.25, v.strokeWidth));
   if (v.kind === 'line') {

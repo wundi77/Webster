@@ -257,7 +257,7 @@ export interface WNode {
 }
 
 /** Eigenschaften, die sich in einer eigenen Animation ändern können */
-export type AnimProp = 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'color';
+export type AnimProp = 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'color' | 'gradient' | 'radius' | 'shape';
 /** Wie der Übergang zum nächsten Schlüsselbild verläuft */
 export type AnimEase = 'linear' | 'smooth' | 'in' | 'out' | 'back' | 'bounce';
 /** Schlüsselbild: Zeit (s), Wert, Verlauf bis zum nächsten Schlüsselbild */
@@ -329,6 +329,8 @@ export interface VectorSpec {
   sides: number;
   /** Stern: Innenradius (0.1–0.95) */
   innerRatio: number;
+  /** Nur zur Anzeige während einer Animation (Form im Übergang), wird nicht gespeichert */
+  path?: string;
   /** Linie: Pfeilspitzen */
   arrowStart: boolean;
   arrowEnd: boolean;
