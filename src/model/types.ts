@@ -112,7 +112,7 @@ export type Link =
 export const HOVER_KEYS = ['fills', 'strokes', 'shadows', 'opacity', 'blur', 'radius', 'radii', 'rotation', 'textStyle'] as const;
 export type HoverKey = typeof HOVER_KEYS[number];
 
-export type RevealType = 'fade' | 'up' | 'left' | 'zoom' | 'words' | 'count';
+export type RevealType = 'fade' | 'up' | 'left' | 'zoom' | 'words' | 'count' | 'draw';
 /** Erscheinen beim Scrollen. stagger: Elemente darin erscheinen nacheinander (Abstand in ms) */
 export interface Reveal { type: RevealType; duration: number; delay: number; stagger?: number }
 

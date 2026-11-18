@@ -8,6 +8,7 @@ import { NumberField, Section, Seg, IconButton } from '../ui/controls';
 import { Icons } from '../ui/icons';
 import { animationFromSelection, openAnimation } from '../model/anim';
 import { isAnimInstance } from '../model/animCore';
+import { DRAW_LEN } from '../export/html';
 
 type Cat = 'appear' | 'scroll' | 'mouse' | 'loop';
 type Kind = RevealType | ScrollFxKind | MouseFxKind | LoopFxKind | 'hover';
@@ -27,6 +28,7 @@ const FX: Fx[] = [
   { kind: 'up', cat: 'appear', label: 'Hochrutschen', tip: 'Gleitet von unten herein', demo: 'fd-up' },
   { kind: 'left', cat: 'appear', label: 'Von links', tip: 'Gleitet von links herein', demo: 'fd-left' },
   { kind: 'zoom', cat: 'appear', label: 'Heranzoomen', tip: 'Wächst etwas heran', demo: 'fd-zoom' },
+  { kind: 'draw', cat: 'appear', label: 'Zeichnet sich', tip: 'Linien und Umrisse zeichnen sich wie mit dem Stift, danach erscheint die Füllung', demo: 'fd-draw', ok: n => n.type === 'vector' },
   { kind: 'words', cat: 'appear', label: 'Wort für Wort', tip: 'Die Wörter erscheinen nacheinander', demo: 'fd-words', ok: hasText },
   { kind: 'count', cat: 'appear', label: 'Hochzählen', tip: 'Zahlen zählen von 0 hoch', demo: 'fd-count', ok: hasNumber },
   { kind: 'depth', cat: 'scroll', label: 'Tiefe', tip: 'Bewegt sich langsamer oder schneller als die Seite – wirkt räumlich', demo: 'fd-depth' },
@@ -75,7 +77,7 @@ function apply(n: WNode, k: Kind, pg?: Page, widths?: Record<string, number>) {
   const f = fxOf(k);
   const m = { ...(n.motion ?? {}) };
   if (f.cat === 'appear') {
-    n.reveal = { type: k as RevealType, duration: n.reveal?.duration ?? (k === 'count' ? 1500 : 700), delay: n.reveal?.delay ?? 0, stagger: k === 'words' || k === 'count' ? undefined : n.reveal?.stagger };
+    n.reveal = { type: k as RevealType, duration: n.reveal?.duration ?? (k === 'count' ? 1500 : k === 'draw' ? 1600 : 700), delay: n.reveal?.delay ?? 0, stagger: k === 'words' || k === 'count' || k === 'draw' ? undefined : n.reveal?.stagger };
     return;
   }
   if (f.cat === 'scroll') {
@@ -123,6 +125,17 @@ export function playFx(page: Page, ids: string[], cat: Cat) {
     if (!n || !el) continue;
     const k = kindOf(n, cat);
     const ease = 'cubic-bezier(.2,.7,.2,1)';
+    if (cat === 'appear' && n.reveal?.type === 'draw') {
+      const r = n.reveal;
+      const svg = el.querySelector('svg');
+      const len = new Function('return ' + DRAW_LEN)() as (p: SVGGeometryElement) => number;
+      svg?.querySelectorAll<SVGGeometryElement>('path,line,polyline,polygon,circle,ellipse,rect').forEach(p => {
+        const L = len(p) + 1;
+        p.animate([{ strokeDasharray: `${L} ${L}`, strokeDashoffset: L }, { strokeDasharray: `${L} ${L}`, strokeDashoffset: 0 }], { duration: r.duration, delay: r.delay, easing: 'cubic-bezier(.45,0,.2,1)', fill: 'backwards' });
+      });
+      svg?.animate([{ fillOpacity: 0 }, { fillOpacity: 0, offset: 0.6 }, { fillOpacity: 1 }], { duration: r.duration * 1.3, delay: r.delay, fill: 'backwards' });
+      continue;
+    }
     if (cat === 'appear' && n.reveal) {
       const r = n.reveal;
       const from: Keyframe = { opacity: 0, ...(k === 'up' || k === 'words' ? { translate: '0 40px' } : k === 'left' ? { translate: '-40px 0' } : k === 'zoom' ? { scale: '.9' } : {}) };
