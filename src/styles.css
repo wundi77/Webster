@@ -1134,3 +1134,11 @@ body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
 .sec-tile svg { width: 100%; height: auto; border-radius: 4px; background: var(--bg-2, rgba(127,127,127,.08)); }
 .sec-tile:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
 .sec-tile:disabled { opacity: .5; cursor: default; }
+
+/* Bild: Fokuspunkt und Beschreibung */
+.lbl-top { margin: 10px 0 4px; font-size: 11px; color: var(--text-3); }
+.focus-pick { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; border-radius: 6px; overflow: hidden; cursor: crosshair; background: var(--bg-1); touch-action: none; }
+.focus-pick img { display: block; max-width: 100%; max-height: 160px; width: auto; height: auto; pointer-events: none; }
+.focus-dot { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.4); background: var(--accent); pointer-events: none; }
+.alt-input { width: 100%; resize: vertical; min-height: 44px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-1); color: var(--text); font: inherit; font-size: 12px; }
+.alt-input:disabled { opacity: .5; }

@@ -197,6 +197,12 @@ export interface WNode {
   /** Kopie (Instanz): Eigenschaften, die bewusst vom Original abweichen (z. B. "text", "mobile.w") */
   touched?: string[];
   objectFit?: 'cover' | 'contain' | 'fill';
+  /** Bildbeschreibung für Screenreader und Suchmaschinen ('' = reiner Schmuck, fehlt = Ebenenname) */
+  alt?: string;
+  /** Fokuspunkt beim Zuschneiden (0…1), Standard Mitte */
+  focus?: { x: number; y: number } | null;
+  /** Beim Klick groß zeigen (mehrere solche Bilder nebeneinander: Galerie zum Blättern) */
+  zoom?: boolean;
   /** Klick führt zu Seite, Abschnitt, Webadresse oder E-Mail */
   link?: Link | null;
   /** Abweichungen beim Überfahren mit der Maus */

@@ -891,7 +891,45 @@ function ImageSection({ node, upd }: { node: WNode; upd: Upd }) {
         <button className="btn grow" onClick={async () => { const [f] = await pickFiles('image/*', false); if (f) replaceImage(node.id, f); }}>Bild ersetzen …</button>
         <button className="btn grow" onClick={() => originalImageSize(node.id)}>Originalgröße</button>
       </div>
+      {(node.objectFit ?? 'cover') === 'cover' && <FocusPicker node={node} upd={upd} />}
+      <div className="row">
+        <label className="check grow" title="Beim Klick öffnet sich das Bild groß über der Seite. Liegen mehrere solche Bilder zusammen, kann man durchblättern (Pfeile, Wischen).">
+          <input type="checkbox" checked={!!node.zoom} disabled={!!node.link} onChange={e => upd(n => { n.zoom = e.target.checked || undefined; }, 'zoom')} />
+          Beim Klick groß zeigen
+        </label>
+      </div>
+      {node.link && <p className="proto-hint">Das Bild hat einen Link – deshalb kann es nicht groß gezeigt werden.</p>}
+      <div className="lbl-top" title="Kurze Beschreibung, was auf dem Bild zu sehen ist. Hilft blinden Menschen (Vorlesen) und Suchmaschinen.">Bildbeschreibung</div>
+      <textarea className="input alt-input" rows={2} aria-label="Bildbeschreibung" disabled={node.alt === ''}
+        placeholder={`Was ist zu sehen? (sonst: „${node.name}“)`} value={node.alt ?? ''}
+        onChange={e => upd(n => { n.alt = e.target.value || undefined; }, 'alt')} />
+      <label className="check" title="Für Bilder, die nur schmücken (Muster, Formen). Vorleseprogramme überspringen sie dann.">
+        <input type="checkbox" checked={node.alt === ''} onChange={e => upd(n => { n.alt = e.target.checked ? '' : undefined; }, 'alt')} />
+        Nur Schmuck – nichts vorlesen
+      </label>
     </Section>
+  );
+}
+
+/** Fokuspunkt: welcher Teil des Bildes beim Zuschneiden sichtbar bleibt */
+function FocusPicker({ node, upd }: { node: WNode; upd: Upd }) {
+  const src = useEditor(s => (node.imageRef ? s.doc.library.images.find(i => i.id === node.imageRef)?.src : undefined)) ?? node.src;
+  if (!src) return null;
+  const f = node.focus ?? { x: 0.5, y: 0.5 };
+  const set = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), y = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    upd(n => { n.focus = { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 }; }, 'focus');
+  };
+  return (
+    <>
+      <div className="lbl-top" title="Klicke auf die wichtigste Stelle im Bild (z. B. ein Gesicht). Wird das Bild auf dem Handy schmaler zugeschnitten, bleibt diese Stelle sichtbar.">Wichtigste Stelle</div>
+      <div className="focus-pick" onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); set(e); }} onPointerMove={e => { if (e.buttons) set(e); }}>
+        <img src={src} alt="" draggable={false} />
+        <span className="focus-dot" style={{ left: `${f.x * 100}%`, top: `${f.y * 100}%` }} />
+      </div>
+      {node.focus && <div className="row"><button type="button" className="btn small grow" onClick={() => upd(n => { n.focus = null; }, 'focus')}>Wieder Bildmitte</button></div>}
+    </>
   );
 }
 

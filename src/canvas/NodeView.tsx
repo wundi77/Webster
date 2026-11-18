@@ -70,7 +70,7 @@ export const NodeView = memo(function NodeView({ id, parentLayout }: { id: strin
       <div className={cls} data-node-id={id} style={style}>
         {(libSrc ?? node.src) && (
           <img src={libSrc ?? node.src} alt="" draggable={false}
-            style={{ display: 'block', width: '100%', height: '100%', objectFit: node.objectFit ?? 'cover', pointerEvents: 'none' }} />
+            style={{ display: 'block', width: '100%', height: '100%', objectFit: node.objectFit ?? 'cover', objectPosition: node.focus ? `${Math.round(node.focus.x * 100)}% ${Math.round(node.focus.y * 100)}%` : undefined, pointerEvents: 'none' }} />
         )}
       </div>
     );
