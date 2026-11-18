@@ -148,6 +148,36 @@ const heroColor = () => {
   return outer;
 };
 
+const heroDepth = () => {
+  const { outer, inner } = section('Kopfbereich mit Tiefe', [paint('Hintergrund')]);
+  outer.clip = true;
+  outer.fullscreen = { offset: 0, stay: false };
+  outer.layout!.justify = 'center';
+  for (const bp of ['tablet', 'mobile'] as const) { const l = outer.overrides?.[bp]?.layout; if (l) outer.overrides![bp]!.layout = { ...l, justify: 'center' }; }
+  // schwebende, weiche Farbflächen: hinten langsam, vorne schneller
+  const orbs: [Role, number, number, number, number, number, number, number][] = [
+    // Rolle, x, y, Größe, Tiefe, Deckkraft, x Tablet, x Handy
+    ['Hauptfarbe', -120, -80, 520, -60, 0.35, -160, -200],
+    ['Akzent', 980, 60, 420, -40, 0.35, 480, 180],
+    ['Hauptfarbe', 760, 520, 300, -20, 0.25, 420, 160],
+    ['Akzent', 140, 560, 220, 0, 0.3, 40, -40],
+  ];
+  orbs.forEach(([role, x, y, size, depth, op, xt, xm], i) => {
+    const o = add(createNode('ellipse', { name: `Farbfläche ${i + 1}`, x, y, w: size, h: size, absolute: true, fills: [paint(role)], opacity: op, blur: 50 }), outer);
+    o.motion = { scroll: depth ? { kind: 'depth', amount: depth } : null };
+    o.overrides = { tablet: { x: xt }, mobile: { x: xm, w: Math.round(size * 0.6), h: Math.round(size * 0.6) } };
+  });
+  // Inhalt zuletzt = vorn, über den Flächen
+  const c = inner({ gap: 'm', align: 'center', maxW: 860 });
+  txt(c, 'Mit Tiefe', { size: 14, weight: 600, role: 'Hauptfarbe', align: 'center', upper: true, ls: 1.2, name: 'Hinweis' });
+  const h = txt(c, 'Beim Scrollen bewegt sich alles verschieden schnell', { size: 64, weight: 800, tag: 'h1', align: 'center', name: 'Überschrift' });
+  h.motion = { scroll: { kind: 'depth', amount: 10 } };
+  txt(c, 'Die weichen Farbflächen im Hintergrund schweben in unterschiedlicher Tiefe – das wirkt räumlich.', { size: 20, role: 'Text leise', align: 'center', name: 'Unterzeile' });
+  const r = box(c, 'Knöpfe', { dir: 'row', gap: 'm', pad: [16, 0, 0, 0], justify: 'center', align: 'center', sizingH: 'auto' });
+  button(r, 'Jetzt starten'); button(r, 'Mehr erfahren', 'ghost');
+  return outer;
+};
+
 const features = () => {
   const { outer, inner } = section('Vorteile', [paint('Hintergrund')]);
   const c = inner({ gap: 'xl', align: 'center' });
@@ -275,6 +305,7 @@ export const SECTIONS: SectionDef[] = [
   { id: 'hero-center', group: 'Kopfbereich', label: 'Mittig', tip: 'Große Überschrift in der Mitte, darunter zwei Knöpfe', build: heroCenter },
   { id: 'hero-split', group: 'Kopfbereich', label: 'Mit Bild', tip: 'Text links, großes Bild rechts – auf dem Handy untereinander', build: heroSplit },
   { id: 'hero-color', group: 'Kopfbereich', label: 'Farbig', tip: 'Bewegter Farbverlauf, füllt das ganze Fenster', build: heroColor },
+  { id: 'hero-depth', group: 'Kopfbereich', label: 'Mit Tiefe', tip: 'Weiche Farbflächen schweben beim Scrollen in verschiedener Tiefe (Parallax)', build: heroDepth },
   { id: 'features', group: 'Inhalt', label: 'Drei Vorteile', tip: 'Drei Karten nebeneinander – auf dem Handy untereinander', build: features },
   { id: 'media', group: 'Inhalt', label: 'Bild und Text', tip: 'Bild links, Text rechts', build: mediaText(false) },
   { id: 'media-flip', group: 'Inhalt', label: 'Text und Bild', tip: 'Text links, Bild rechts, farbiger Hintergrund', build: mediaText(true) },

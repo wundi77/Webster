@@ -259,6 +259,7 @@ export function MotionSection({ nodes, ids }: { nodes: WNode[]; ids: string[] })
           <OwnAnimButton nodes={nodes} onDone={() => setPicking(false)} />
         </div>
       )}
+      {!picking && <DepthLayers nodes={nodes} />}
       {!picking && (
         active.length
           ? <p className="proto-hint">Auf der Arbeitsfläche bleibt alles still – ▶ führt die Bewegung vor, in der Vorschau läuft sie echt. Wer auf dem Gerät „Bewegung reduzieren“ eingestellt hat, sieht eine ruhige Seite.</p>
@@ -268,6 +269,38 @@ export function MotionSection({ nodes, ids }: { nodes: WNode[]; ids: string[] })
             </>
       )}
     </Section>
+  );
+}
+
+/** Parallax: die Ebenen einer Gruppe beim Scrollen unterschiedlich schnell bewegen (hinten langsam, vorne normal) */
+function DepthLayers({ nodes }: { nodes: WNode[] }) {
+  const page = useEditor(pageOf);
+  const g = nodes.length === 1 && nodes[0].type === 'board' && !isAnimInstance(nodes[0]) ? nodes[0] : null;
+  const kids = g ? g.children.map(c => page.nodes[c]).filter((k): k is WNode => !!k && k.visible) : [];
+  if (!g || kids.length < 2) return null;
+  const has = kids.some(k => k.motion?.scroll?.kind === 'depth');
+  const stagger = () => S().mutate(pg => {
+    const list = g.children.map(c => pg.nodes[c]).filter((k): k is WNode => !!k && k.visible);
+    const back = list.filter(k => k.type !== 'text');
+    back.forEach((k, i) => {
+      // hinterste Ebene (zuerst gezeichnet) am langsamsten
+      const a = back.length > 1 ? Math.round(-60 + (i * 60) / (back.length - 1)) : -40;
+      k.motion = { ...k.motion, scroll: a ? { kind: 'depth', amount: a } : null };
+    });
+    list.filter(k => k.type === 'text').forEach(k => { k.motion = { ...k.motion, scroll: { kind: 'depth', amount: 10 } }; });
+  }, { key: 'depth-layers' });
+  const clear = () => S().mutate(pg => {
+    for (const c of g.children) { const k = pg.nodes[c]; if (k?.motion?.scroll?.kind === 'depth') k.motion = { ...k.motion, scroll: null }; }
+  }, { key: 'depth-layers' });
+  return (
+    <div className="row">
+      {has
+        ? <button type="button" className="fx-add own" onClick={clear} title="Die Tiefen-Bewegung aller Ebenen in dieser Gruppe entfernen">Tiefen-Staffelung aufheben</button>
+        : <button type="button" className="fx-add own" onClick={() => { stagger(); requestAnimationFrame(() => playFx(pageOf(S()), g.children, 'scroll')); }}
+            title="Parallax: Beim Scrollen bewegen sich hintere Ebenen langsamer als vordere – das wirkt räumlich. Texte schweben leicht nach vorn.">
+            ≋ Ebenen in die Tiefe staffeln
+          </button>}
+    </div>
   );
 }
 
