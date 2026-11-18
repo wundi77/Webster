@@ -1,7 +1,7 @@
 // Erzeugt aus einer Seite echtes HTML + CSS – für die Live-Vorschau und den Export.
 import type { Breakpoint, Page, WDocument, WNode } from '../model/types';
 import { CODE_SANDBOX, codeSrcdoc } from '../model/code';
-import { effectiveSizing, isFooter, isHeader, nodeCss, rgba, slug, videoFillOf } from '../model/css';
+import { effectiveSizing, isFooter, isHeader, nodeCss, paintCss, rgba, setDarkPaints, slug, videoFillOf } from '../model/css';
 import { resolveNode } from '../model/resolve';
 import { textTagOf } from '../model/headings';
 import { fontHrefFor, type FontUse } from '../model/fonts';
@@ -268,7 +268,23 @@ export interface PageParts { body: string; css: string; fonts: FontUse[]; backgr
   scroll?: { at: number; hyst: number } }
 
 /** HTML-Körper und CSS einer Seite */
+/** Farben mit Dunkel-Variante (nur wenn der Dunkel-Modus eingeschaltet ist) */
+const darkPaintIds = (doc: WDocument) => (doc.site?.darkMode === 'auto' ? new Set(doc.library.colors.filter(c => c.dark).map(c => c.id)) : null);
+
+/** Farb-Variablen für hell und dunkel */
+export function darkModeCss(doc: WDocument): string {
+  const ids = darkPaintIds(doc);
+  if (!ids?.size) return '';
+  const cs = doc.library.colors.filter(c => c.dark);
+  return `:root{color-scheme:light dark;${cs.map(c => `--wc-${c.id}:${rgba(c.color, c.opacity)}`).join(';')}}\n@media (prefers-color-scheme: dark){:root{${cs.map(c => `--wc-${c.id}:${rgba(c.dark!.color, c.dark!.opacity)}`).join(';')}}}`;
+}
+
 export function renderPageParts(ctx: PageCtx): PageParts {
+  setDarkPaints(darkPaintIds(ctx.doc));
+  try { return renderPagePartsInner(ctx); } finally { setDarkPaints(null); }
+}
+
+function renderPagePartsInner(ctx: PageCtx): PageParts {
   const { page, doc, pretty } = ctx;
   const root = siteRoot(page);
   if (!root) return { body: '<p style="font-family:system-ui;padding:40px;color:#666">Diese Seite hat noch kein Board.</p>', css: '', fonts: [], background: '#fff', empty: true };
@@ -663,7 +679,7 @@ export function renderPageParts(ctx: PageCtx): PageParts {
         const f = ph.fills.find(x => x.visible);
         base.push(block(`${sel}`, {
           'font-family': `"${ts.fontFamily}", sans-serif`, 'font-size': px(ts.fontSize), 'font-weight': String(ts.fontWeight),
-          'line-height': String(ts.lineHeight), ...(f ? { color: rgba(f.color, f.opacity) } : {}),
+          'line-height': String(ts.lineHeight), ...(f ? { color: paintCss(f) } : {}),
         }, pretty));
         base.push(block(`${sel}::placeholder`, { color: 'inherit', opacity: String(ph.opacity ?? 0.5) }, pretty));
       }
@@ -816,7 +832,7 @@ export function renderPageParts(ctx: PageCtx): PageParts {
     scrollRules.length ? `@media (prefers-reduced-motion: reduce) {${nl}  html.w-scrolled * { transition: none !important; }${nl}}` : '',
   ].filter(Boolean).join(pretty ? '\n\n' : '\n');
   const scroll = scrollRules.length ? { at: scrollAt, hyst: shrink + 20 } : undefined;
-  return { body, css, fonts, background: bg ? rgba(bg.color, bg.opacity) : '#fff', empty: false, nav: navRules.length > 0, form: hasForm, embed: hasEmbed, scroll, motion: hasMotion, lottie: hasLottie };
+  return { body, css, fonts, background: bg ? paintCss(bg) : '#fff', empty: false, nav: navRules.length > 0, form: hasForm, embed: hasEmbed, scroll, motion: hasMotion, lottie: hasLottie };
 }
 
 /** Schriften gruppiert nach Familie */
@@ -850,6 +866,7 @@ ${parts.form ? FORM_CSS : ''}
 ${parts.embed ? EMBED_CSS : ''}
 ${parts.motion ? MOTION_CSS : ''}
 ${siteFxCss(doc.site)}
+${darkModeCss(doc)}
 body{background:${parts.background}${doc.site?.baseFont ? `;font-size:${doc.site.baseFont}px` : ''}}
 ${parts.css}
 ${doc.site?.css ?? ''}

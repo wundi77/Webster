@@ -147,7 +147,7 @@ export function withAnim(n: WNode, t: number): WNode {
     if (!k?.length) continue;
     const v = valueAt(k, t);
     if (p === 'color') {
-      if (r.fills[0] && !r.fills[0].gradient) r.fills = [{ ...r.fills[0], color: String(v) }, ...r.fills.slice(1)];
+      if (r.fills[0] && !r.fills[0].gradient) r.fills = [{ ...r.fills[0], color: String(v), colorRef: null }, ...r.fills.slice(1)];
     } else if (p === 'gradient') {
       if (r.fills[0]?.gradient) { const g = asGradient(String(v)); r.fills = [{ ...r.fills[0], gradient: g, color: g.stops[0]?.color ?? r.fills[0].color }, ...r.fills.slice(1)]; }
     } else if (p === 'shape') {

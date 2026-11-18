@@ -26,6 +26,9 @@ export interface EditorState {
   doc: WDocument;
   /** Abspielkopf der geöffneten Animation (Kopie aus useAnimClock, damit die Ansicht neu zeichnet) */
   animT: number;
+  /** Arbeitsfläche im Dunkel-Modus ansehen */
+  darkView: boolean;
+  setDarkView: (v: boolean) => void;
   pageId: string;
   selection: string[];
   hoverId: string | null;
@@ -106,6 +109,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
   saveError: false,
   breakpoint: 'desktop',
   animT: 0,
+  darkView: false,
+  setDarkView: darkView => set({ darkView }),
   interaction: 'normal',
   setInteraction: interaction => set({ interaction }),
   geom: {},

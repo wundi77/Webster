@@ -2,6 +2,7 @@
 // Oben fertige Bausteine, darunter Bildchen (nebeneinander/untereinander/Kacheln/frei),
 // Breite der Elemente, Abstand, Verhalten auf Tablet/Handy und eine Mini-Vorschau für alle drei Bildschirme.
 // Die bisherigen Profi-Einstellungen stehen unter „Mehr Optionen“.
+import { SpaceChips } from '../ui/SpaceChips';
 import { useState, type ReactNode } from 'react';
 import { useEditor, pageOf } from '../store';
 import type { Breakpoint, Layout, Page, Sizing, Track, WNode } from '../model/types';
@@ -149,7 +150,7 @@ export function ArrangeSection({ node, advanced }: { node: WNode; advanced: Reac
     if (v === 'auto' && !(n.type === 'text' || (n.type === 'board' && n.layout))) v = 'fixed';
     n.sizingH = v;
   }, 'kids-w');
-  const setGap = (g: number) => updateNodes([raw.id], n => { if (n.layout) { n.layout.gap = g; n.layout.rowGap = g; } }, 'layout-gap');
+  const setGap = (g: number) => updateNodes([raw.id], n => { if (n.layout) { n.layout.gap = g; n.layout.rowGap = g; n.layout.gapRef = null; } }, 'layout-gap');
 
   return (
     <section className="section arr">
@@ -190,6 +191,10 @@ export function ArrangeSection({ node, advanced }: { node: WNode; advanced: Reac
             <span className="lbl">Abstand</span>
             <input type="range" className="grow" min={0} max={120} step={4} value={L.gap} aria-label="Abstand zwischen den Elementen" onChange={e => setGap(+e.target.value)} />
             <NumberField title="Abstand zwischen den Elementen" min={0} suffix="px" value={L.gap} onChange={setGap} />
+          </div>
+          <div className="row">
+            <span className="lbl">Stufe</span>
+            <SpaceChips ids={[raw.id]} kind="gap" active={L.gapRef} />
           </div>
         </>
       )}

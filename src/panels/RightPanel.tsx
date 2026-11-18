@@ -1,3 +1,5 @@
+import { SpaceChips } from '../ui/SpaceChips';
+import { SPACE_NAMES, SPACE_TOKENS, setSpaceStep, spaceOf } from '../model/spacing';
 import { isAnimInstance } from '../model/animCore';
 import { PageSeoFields, SiteFields, useDialog } from './SiteSettings';
 import { NavInsertSection, NavSection } from './NavSection';
@@ -363,7 +365,13 @@ function LayoutSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
   const any = nodes.some(n => n.layout);
   const [indivPad, setIndivPad] = useState(false);
   const [ownCols, setOwnCols] = useState(false);
-  const setL = <K extends keyof Layout>(k: K, v: Layout[K]) => upd(n => { if (n.layout) n.layout[k] = v; }, 'layout-' + k);
+  const setL = <K extends keyof Layout>(k: K, v: Layout[K]) => upd(n => {
+    if (!n.layout) return;
+    n.layout[k] = v;
+    // eigener Wert: Verknüpfung mit der Abstands-Stufe lösen
+    if (k === 'gap') n.layout.gapRef = null;
+    if (k === 'padding') n.layout.padRef = null;
+  }, 'layout-' + k);
   const add = (type: 'flex' | 'grid') => nodes.forEach(n => addLayout(n.id, type));
 
   if (!any) {
@@ -427,6 +435,7 @@ function LayoutSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
           <div className="row">
             <span className="lbl">Abstand</span>
             <NumberField title="Abstand zwischen den Elementen" min={0} suffix="px" value={L.gap} onChange={v => setL('gap', v)} />
+            <SpaceChips ids={nodes.map(n => n.id)} kind="gap" active={L.gapRef} />
             {L.wrap
               ? <NumberField label="Zeilen" title="Abstand zwischen den Zeilen (beim Umbrechen)" min={0} suffix="px" value={L.rowGap} onChange={v => setL('rowGap', v)} />
               : <div className="grow" />}
@@ -465,6 +474,7 @@ function LayoutSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
             <span className="lbl">Abstand</span>
             <NumberField label="↔" title="Abstand zwischen den Spalten" min={0} suffix="px" value={L.gap} onChange={v => setL('gap', v)} />
             <NumberField label="↕" title="Abstand zwischen den Zeilen" min={0} suffix="px" value={L.rowGap} onChange={v => setL('rowGap', v)} />
+            <SpaceChips ids={nodes.map(n => n.id)} kind="gap" active={L.gapRef} />
           </div>
           <div className="row">
             <span className="lbl">Mauerwerk</span>
@@ -490,6 +500,7 @@ function LayoutSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
         <span className="lbl">Innenabstand</span>
         <NumberField title="Innenabstand an allen Seiten" min={0} suffix="px" value={showIndiv && !padSame ? undefined : pad[0]} placeholder={padSame ? undefined : 'Gemischt'}
           onChange={v => setL('padding', [v, v, v, v])} />
+        <SpaceChips ids={nodes.map(n => n.id)} kind="pad" active={L.padRef} />
         <Seg value={showIndiv ? 'each' : 'all'} onChange={v => { if (v === 'all') { setIndivPad(false); setL('padding', [pad[0], pad[0], pad[0], pad[0]]); } else setIndivPad(true); }} options={[
           { value: 'all', icon: <span>Alle</span>, title: 'An allen Seiten gleich' },
           { value: 'each', icon: <span>Einzeln</span>, title: 'Jede Seite einzeln' },
@@ -706,6 +717,7 @@ function SiteSection({ site }: { site: WNode }) {
           { value: 'lively', icon: <span>Lebhaft</span>, title: 'Alle Bewegungen schneller und kräftiger' },
         ]} />
       </div>
+      <DesignRows />
       <p className="proto-hint">
         {cw === null
           ? 'Inhaltsbreite aus: In breiteren Fenstern ziehen sich Elemente im Layout mit in die Breite.'
@@ -713,6 +725,43 @@ function SiteSection({ site }: { site: WNode }) {
         {' '}Grundschrift: Größe für neue Texte und für Text ohne eigene Größe. Das Hilfsraster ist nur im Editor zu sehen (Feineinstellung unten unter „Spaltenraster“). Seitenwechsel und Bewegungen siehst du in der Vorschau; wer „Bewegung reduzieren“ eingestellt hat, bekommt sie ruhig.
       </p>
     </Section>
+  );
+}
+
+/** Dunkel-Modus und Abstands-Stufen */
+function DesignRows() {
+  const dm = useEditor(s => s.doc.site?.darkMode ?? 'off');
+  const dv = useEditor(s => s.darkView);
+  const hasDark = useEditor(s => s.doc.library.colors.some(c => c.dark));
+  const space = useEditor(useShallow(s => spaceOf(s.doc)));
+  const setDm = (v: 'off' | 'auto') => useEditor.getState().mutate((_, d) => { d.site = { ...(d.site ?? { name: d.name, lang: 'de', url: '', favicon: null, selfHostFonts: false }), darkMode: v }; }, { key: 'darkMode' });
+  return (
+    <>
+      <div className="row">
+        <span className="lbl">Dunkel-Modus</span>
+        <Seg value={dm} onChange={v => setDm(v as 'off' | 'auto')} options={[
+          { value: 'off', icon: <span>Aus</span>, title: 'Die Seite sieht immer gleich aus' },
+          { value: 'auto', icon: <span>Automatisch</span>, title: 'Hat der Besucher sein Gerät auf dunkel gestellt, zeigt die Seite die Dunkel-Farben' },
+        ]} />
+      </div>
+      {dm === 'auto' && (
+        <div className="row">
+          <span className="lbl">Ansehen</span>
+          <Seg value={dv ? 'dark' : 'light'} onChange={v => useEditor.getState().setDarkView(v === 'dark')} options={[
+            { value: 'light', icon: <span>Hell</span>, title: 'Arbeitsfläche mit den normalen Farben' },
+            { value: 'dark', icon: <span>Dunkel</span>, title: 'Arbeitsfläche so zeigen, wie die Seite im Dunkel-Modus aussieht' },
+          ]} />
+        </div>
+      )}
+      {dm === 'auto' && !hasDark && <p className="proto-hint">Noch keine Farbe hat eine Dunkel-Variante. Lege links unter „Farben“ ein Farbschema an oder gib einer Farbe eine Dunkel-Farbe.</p>}
+      <div className="row space-steps">
+        <span className="lbl" title="Feste Abstands-Stufen S, M, L, XL. Änderst du eine Stufe, ändern sich alle Abstände, die diese Stufe benutzen.">Abstände</span>
+        {SPACE_TOKENS.map(t => (
+          <NumberField key={t} label={SPACE_NAMES[t]} title={`Stufe ${SPACE_NAMES[t]} in Pixel`} min={0} max={400} step={1} precision={0}
+            value={space[t]} onChange={v => setSpaceStep(t, v)} />
+        ))}
+      </div>
+    </>
   );
 }
 

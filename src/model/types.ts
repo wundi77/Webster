@@ -83,6 +83,9 @@ export interface Layout {
   gap: number;                    // Spaltenabstand (bzw. Abstand in Hauptrichtung)
   rowGap: number;                 // Zeilenabstand
   padding: Padding;
+  /** Abstands-Stufe (folgt den Stufen der Website), fehlt = eigener Wert */
+  gapRef?: SpaceToken | null;
+  padRef?: SpaceToken | null;
   justify: Justify;               // Flex: Verteilung in Hauptrichtung
   align: AlignItems;              // Ausrichtung quer bzw. vertikal (Grid)
   justifyItems: AlignItems;       // Grid: horizontale Ausrichtung in der Zelle
@@ -361,7 +364,14 @@ export interface SiteSettings {
   pageTransition?: 'none' | 'fade' | 'slide';
   /** Bewegungs-Stil der ganzen Seite: macht alle Bewegungen ruhiger oder lebhafter */
   motionStyle?: 'calm' | 'normal' | 'lively';
+  /** Dunkel-Modus: folgt der Einstellung des Geräts (auto) */
+  darkMode?: 'off' | 'auto';
+  /** Abstands-Stufen in px (S, M, L, XL) */
+  space?: SpaceScale;
 }
+
+export type SpaceToken = 's' | 'm' | 'l' | 'xl';
+export type SpaceScale = Record<SpaceToken, number>;
 
 export interface Page {
   id: string;
@@ -372,7 +382,7 @@ export interface Page {
   nodes: Record<string, WNode>;
 }
 
-export interface ColorAsset { id: string; name: string; color: string; opacity: number }
+export interface ColorAsset { id: string; name: string; color: string; opacity: number; /** Farbe im Dunkel-Modus (fehlt = gleiche Farbe) */ dark?: { color: string; opacity: number } | null }
 
 /** Typografie eines Textstils (ohne Ausrichtung und Unterstreichung) */
 export type TypoKey = 'fontFamily' | 'fontSize' | 'fontWeight' | 'lineHeight' | 'letterSpacing' | 'italic' | 'transform';

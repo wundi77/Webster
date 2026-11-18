@@ -6,7 +6,7 @@ import { gradientCss, svgGradientId } from './gradient';
 import type { Fill } from './types';
 
 /** Eine Füllung als CSS-Bildebene (Verlauf oder einfarbig) */
-const fillLayer = (f: Fill) => (f.kind === 'grain' ? grainUrl(f) : f.gradient ? gradientCss(f.gradient, f.opacity) : `linear-gradient(${rgba(f.color, f.opacity)}, ${rgba(f.color, f.opacity)})`);
+const fillLayer = (f: Fill) => (f.kind === 'grain' ? grainUrl(f) : f.gradient ? gradientCss(f.gradient, f.opacity) : `linear-gradient(${paintCss(f)}, ${paintCss(f)})`);
 
 /** Körnung: feines Rauschen als SVG (wird gekachelt) */
 export function grainUrl(f: Fill): string {
@@ -18,6 +18,18 @@ export function grainUrl(f: Fill): string {
 const grainSize = (f: Fill) => (f.grain === 'coarse' ? '220px 220px' : '160px 160px');
 /** Hintergrund-Ebene, die als eigenes Element gezeichnet wird (Video) */
 export const videoFillOf = (n: WNode) => n.fills.find(f => f.visible && f.kind === 'video' && f.videoRef);
+
+/**
+ * Dunkel-Modus beim Export: verknüpfte Farben mit Dunkel-Variante werden zu CSS-Variablen,
+ * damit Hover, Scrollen, Animationen und Hintergrund automatisch mitwechseln.
+ */
+let darkIds: Set<string> | null = null;
+export function setDarkPaints(ids: Set<string> | null) { darkIds = ids; }
+type PaintLike = { color: string; opacity: number; colorRef?: string | null };
+export function paintCss(p: PaintLike): string {
+  const c = rgba(p.color, p.opacity);
+  return darkIds && p.colorRef && darkIds.has(p.colorRef) ? `var(--wc-${p.colorRef}, ${c})` : c;
+}
 
 export function rgba(hex: string, opacity = 1): string {
   let h = hex.replace('#', '');
@@ -168,14 +180,14 @@ export function nodeCss(node: WNode, parent: Layout | null = null): Record<strin
     // Verläufe: echte SVG-Verläufe (in vectorSvg als <defs>), hier nur der Verweis darauf
     const f = fills[0];
     const grad = f?.gradient ? `url(#${svgGradientId(node.id, f.gradient, f.opacity)})` : null;
-    if (shape) c['fill'] = f ? grad ?? rgba(f.color, f.opacity) : 'none';
+    if (shape) c['fill'] = f ? grad ?? paintCss(f) : 'none';
     else if (f) {
-      c['color'] = rgba(f.color, f.opacity);
+      c['color'] = paintCss(f);
       if (grad) c['--wpaint'] = grad;
     }
     const st = node.strokes.find(s => s.visible && s.width > 0);
     if (shape && st) {
-      c['stroke'] = rgba(st.color, st.opacity);
+      c['stroke'] = paintCss(st);
       c['stroke-width'] = px(st.width);
       c['stroke-linejoin'] = 'round';
       if (st.style === 'dashed') c['stroke-dasharray'] = `${px(st.width * 3)} ${px(st.width * 2)}`;
@@ -183,7 +195,7 @@ export function nodeCss(node: WNode, parent: Layout | null = null): Record<strin
     }
   } else if (node.type === 'text') {
     const f = fills[0];
-    if (f) c['color'] = rgba(f.color, f.opacity);
+    if (f) c['color'] = paintCss(f);
     if (f?.gradient) {
       // Verlauf in der Schrift: Hintergrund auf die Buchstaben zuschneiden
       c['background-image'] = gradientCss(f.gradient, f.opacity);
@@ -203,7 +215,7 @@ export function nodeCss(node: WNode, parent: Layout | null = null): Record<strin
     const special = layers.some(f => f.kind === 'grain' || f.move);
     if (layers.length === 1 && !layers[0].gradient && !special) {
       // nur Einzelangaben (keine „background“-Kurzform), damit Hover-Wechsel sauber zurückgesetzt werden
-      c['background-color'] = rgba(layers[0].color, layers[0].opacity);
+      c['background-color'] = paintCss(layers[0]);
     } else if (layers.length) {
       c['background-image'] = layers.map(fillLayer).join(', ');
       if (special) {
@@ -217,24 +229,24 @@ export function nodeCss(node: WNode, parent: Layout | null = null): Record<strin
 
   const st = node.strokes.find(s => s.visible);
   if (st && st.width > 0 && node.type !== 'text' && node.type !== 'vector') {
-    c['outline'] = `${px(st.width)} ${st.style} ${rgba(st.color, st.opacity)}`;
+    c['outline'] = `${px(st.width)} ${st.style} ${paintCss(st)}`;
     c['outline-offset'] = st.position === 'inside' ? px(-st.width) : st.position === 'center' ? px(-st.width / 2) : '0px';
   }
 
   const sh = node.shadows.filter(s => s.visible);
   if (sh.length) {
     if (node.type === 'vector') {
-      const v = sh.filter(s => s.kind === 'drop').map(s => `drop-shadow(${px(s.x)} ${px(s.y)} ${px(s.blur / 2)} ${rgba(s.color, s.opacity)})`).join(' ');
+      const v = sh.filter(s => s.kind === 'drop').map(s => `drop-shadow(${px(s.x)} ${px(s.y)} ${px(s.blur / 2)} ${paintCss(s)})`).join(' ');
       if (v) c['filter'] = v;
     } else if (node.type === 'text' && fills[0]?.gradient) {
       // Schatten würde über durchsichtiger Schrift liegen → als Filter
-      const v = sh.filter(s => s.kind === 'drop').map(s => `drop-shadow(${px(s.x)} ${px(s.y)} ${px(s.blur / 2)} ${rgba(s.color, s.opacity)})`).join(' ');
+      const v = sh.filter(s => s.kind === 'drop').map(s => `drop-shadow(${px(s.x)} ${px(s.y)} ${px(s.blur / 2)} ${paintCss(s)})`).join(' ');
       if (v) c['filter'] = v;
     } else if (node.type === 'text') {
-      const v = sh.filter(s => s.kind === 'drop').map(s => `${px(s.x)} ${px(s.y)} ${px(s.blur)} ${rgba(s.color, s.opacity)}`).join(', ');
+      const v = sh.filter(s => s.kind === 'drop').map(s => `${px(s.x)} ${px(s.y)} ${px(s.blur)} ${paintCss(s)}`).join(', ');
       if (v) c['text-shadow'] = v;
     } else {
-      c['box-shadow'] = sh.map(s => `${s.kind === 'inner' ? 'inset ' : ''}${px(s.x)} ${px(s.y)} ${px(s.blur)} ${px(s.spread)} ${rgba(s.color, s.opacity)}`).join(', ');
+      c['box-shadow'] = sh.map(s => `${s.kind === 'inner' ? 'inset ' : ''}${px(s.x)} ${px(s.y)} ${px(s.blur)} ${px(s.spread)} ${paintCss(s)}`).join(', ');
     }
   }
   if (node.blur > 0) c['filter'] = [`blur(${px(node.blur)})`, c['filter']].filter(Boolean).join(' ');

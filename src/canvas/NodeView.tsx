@@ -9,6 +9,7 @@ import { ensureFont } from '../model/fonts';
 import { deleteNodes, setText } from '../model/commands';
 import { resolveNode } from '../model/resolve';
 import { withHover, withScrolled } from '../model/hover';
+import { withDark } from '../model/theme';
 import { animDesignSize, isAnimInstance, isAnimPage, withAnim } from '../model/animCore';
 import { navCollapsed, navOwner } from '../model/nav';
 import { EMBED_INFO, embedSrc } from '../model/embedCore';
@@ -24,6 +25,7 @@ export const NodeView = memo(function NodeView({ id, parentLayout }: { id: strin
     let r = resolveNode(n, s.breakpoint);
     // Eigene Animation: im Animations-Editor der Stand beim Abspielkopf, sonst der Endzustand
     if (n.anim) r = withAnim(r, isAnimPage(s.doc, s.pageId) ? s.animT : Infinity);
+    if (s.darkView) r = withDark(r, s.doc.library.colors);
     // Nach dem Scrollen: gilt für die ganze Seite
     if (s.interaction === 'scrolled') return withScrolled(r);
     if (s.interaction !== 'hover' || !n.hover) return r;
