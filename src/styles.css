@@ -1127,3 +1127,10 @@ body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
 .palette-name { grid-column: 2; grid-row: 1 / 3; font-size: 12px; }
 .space-steps { flex-wrap: wrap; }
 .space-steps .num { flex: 1 1 0; min-width: 0; }
+
+/* Fertige Abschnitte */
+.sec-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 4px; }
+.sec-tile { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 5px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-1); color: var(--text-2); font: inherit; font-size: 10.5px; cursor: pointer; text-align: center; }
+.sec-tile svg { width: 100%; height: auto; border-radius: 4px; background: var(--bg-2, rgba(127,127,127,.08)); }
+.sec-tile:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+.sec-tile:disabled { opacity: .5; cursor: default; }

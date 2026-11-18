@@ -84,7 +84,9 @@ export function nodeCss(node: WNode, parent: Layout | null = null): Record<strin
       const crossFill = row ? sz.v === 'fill' : sz.h === 'fill';
       if (mainFill) { c['flex'] = '1 1 0px'; c[row ? 'min-width' : 'min-height'] = '0px'; }
       else c['flex-shrink'] = '0';
-      if (crossFill) c['align-self'] = 'stretch';
+      // Füllen mit Höchstbreite in einem mittig ausrichtenden Board: volle Breite bis zur Grenze, dann mittig
+      if (crossFill && node.maxW !== null && !row && parent.align === 'center') { c['align-self'] = 'center'; c['width'] = '100%'; }
+      else if (crossFill) c['align-self'] = 'stretch';
       else if (node.alignSelf !== 'auto') c['align-self'] = flexAlign(node.alignSelf);
     } else if (parent.masonry) {
       // Kachel im Mauerwerk: volle Spaltenbreite, nicht über zwei Spalten zerteilen

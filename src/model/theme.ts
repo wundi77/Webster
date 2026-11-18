@@ -39,9 +39,19 @@ export function applyPalette(p: Palette) {
       if (ex) { ex.color = light; ex.opacity = 1; ex.dark = { color: dark, opacity: 1 }; }
       else d.library.colors.push({ id: uid(), name, color: light, opacity: 1, dark: { color: dark, opacity: 1 } });
     }
+    // Weißer Seitenhintergrund und fast schwarze Texte an die Rollen hängen – sonst wird im Dunkel-Modus Text unlesbar
+    const role = (n: string) => d.library.colors.find(c => c.name === n)!;
+    const lum = (hex: string) => { const h = hex.replace('#', ''); const v = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+    const all = [...d.pages, ...(d.componentPages ?? [])];
+    for (const pg of all) for (const id in pg.nodes) {
+      const n = pg.nodes[id];
+      const f = n.fills[0];
+      if (!f || f.colorRef || f.gradient || f.kind || f.opacity < 1) continue;
+      if (n.site && lum(f.color) > 0.94) { f.colorRef = role('Hintergrund').id; }
+      else if (n.type === 'text' && lum(f.color) < 0.06) { f.colorRef = role('Text').id; }
+    }
     // verknüpfte Stellen aktualisieren
     const byId = new Map(d.library.colors.map(c => [c.id, c]));
-    const all = [...d.pages, ...(d.componentPages ?? [])];
     for (const pg of all) for (const id in pg.nodes) {
       const n = pg.nodes[id];
       for (const x of [...n.fills, ...n.strokes, ...n.shadows]) { const c = x.colorRef ? byId.get(x.colorRef) : undefined; if (c) { x.color = c.color; x.opacity = c.opacity; } }

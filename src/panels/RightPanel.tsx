@@ -1,4 +1,5 @@
 import { SpaceChips } from '../ui/SpaceChips';
+import { SectionsInsertSection } from './SectionsInsert';
 import { SPACE_NAMES, SPACE_TOKENS, setSpaceStep, spaceOf } from '../model/spacing';
 import { isAnimInstance } from '../model/animCore';
 import { PageSeoFields, SiteFields, useDialog } from './SiteSettings';
@@ -1532,6 +1533,7 @@ function ProtoTab() {
   if (!nodes.length) {
     return (
       <>
+        <SectionsInsertSection />
         <NavInsertSection />
         <FormInsertSection />
         <EmbedInsertSection />
