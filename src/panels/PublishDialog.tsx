@@ -12,6 +12,7 @@ import { formsWithoutRecipient } from '../model/form';
 import { addPolicySections, EMBED_INFO, embedReady, servicesMissingInPolicy } from '../model/embed';
 import { useDialog } from './SiteSettings';
 import { slug } from '../model/css';
+import { checkPages, type Finding } from '../model/pageCheck';
 
 type Level = 'ok' | 'warn' | 'info';
 interface Check { id: string; level: Level; text: ReactNode; action?: { label: string; run: () => void } }
@@ -85,6 +86,28 @@ function useChecks(): Check[] {
   out.push(noH1.length
     ? { id: 'h1', level: 'info', text: <>Keine Hauptüberschrift (H1) auf: {noH1.map(p => p.name).join(', ')}. Wichtigste Überschrift markieren: Text auswählen → Text → Art „Überschrift 1“.</>, action: { label: 'Seite öffnen', run: () => openPage(noH1[0].id) } }
     : { id: 'h1', level: 'ok', text: <>Jede Seite hat eine Hauptüberschrift (H1).</> });
+
+  // Seiten-Check: Lesbarkeit, Bilder, Links
+  const found = checkPages(doc);
+  const show = (f: Finding) => { openPage(f.page.id); useEditor.getState().setSelection([f.nodeId]); };
+  const KINDS: [Finding['kind'], Level, string, string][] = [
+    ['contrast', 'warn', 'Schwer lesbar (zu wenig Kontrast zum Hintergrund)', 'Text kräftiger färben oder Hintergrund ändern.'],
+    ['dark', 'warn', 'Dunkel-Modus', ''],
+    ['link', 'warn', 'Links ohne Ziel', 'Beim Klick passiert nichts.'],
+    ['big', 'info', 'Große Bilder', 'Kleiner speichern (z. B. 1600 px breit, als JPG oder WebP) – dann lädt die Seite schneller.'],
+    ['alt', 'info', 'Bilder ohne Beschreibung', 'Bild auswählen → „Bildbeschreibung“ ausfüllen (oder „Nur Schmuck“ ankreuzen). Hilft Vorleseprogrammen und Google.'],
+  ];
+  for (const [kind, level, title, tip] of KINDS) {
+    const list = found.filter(f => f.kind === kind);
+    if (!list.length) continue;
+    out.push({ id: 'pc-' + kind, level, text: <>
+      <b>{title}</b>{list.length > 1 ? ` (${list.length})` : ''}{tip ? ` – ${tip}` : ''}
+      <span className="pub-finds">{list.slice(0, 6).map((f, i) => <button key={i} type="button" className="pub-find" title="Auf der Arbeitsfläche zeigen" onClick={() => show(f)}>{doc.pages.length > 1 ? `${f.page.name}: ` : ''}{f.text}</button>)}
+        {list.length > 6 && <span className="pub-more">… und {list.length - 6} weitere</span>}</span>
+    </>, action: { label: 'Zeigen', run: () => show(list[0]) } });
+  }
+  if (!found.some(f => f.kind === 'contrast')) out.push({ id: 'pc-contrast', level: 'ok', text: <>Alle Texte sind gut lesbar (genug Kontrast{doc.site?.darkMode === 'auto' ? ', auch im Dunkel-Modus' : ''}).</> });
+  if (!found.some(f => f.kind === 'link')) out.push({ id: 'pc-link', level: 'ok', text: <>Alle Links haben ein Ziel.</> });
 
   const seoMissing = doc.pages.filter(p => { const s = { ...defaultSeo(), ...p.seo }; return siteRoot(p) && (!s.title || !s.description); });
   out.push(seoMissing.length

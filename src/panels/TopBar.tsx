@@ -37,6 +37,7 @@ export function TopBar() {
             <div className="menu-sep" />
             <MenuItem label="Website exportieren …" shortcut={`${SHIFT}${MOD}E`} onClick={() => { close(); useDialog.getState().show('export'); }} />
             <MenuItem label="Veröffentlichen …" onClick={() => { close(); useDialog.getState().show('publish'); }} />
+            <MenuItem label="Seiten-Check …" onClick={() => { close(); useDialog.getState().show('publish'); }} />
           </>
         )}
       </Menu>

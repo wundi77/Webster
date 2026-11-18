@@ -48,7 +48,7 @@ export function applyPalette(p: Palette) {
       const f = n.fills[0];
       if (!f || f.colorRef || f.gradient || f.kind || f.opacity < 1) continue;
       if (n.site && lum(f.color) > 0.94) { f.colorRef = role('Hintergrund').id; }
-      else if (n.type === 'text' && lum(f.color) < 0.06) { f.colorRef = role('Text').id; }
+      else if (n.type === 'text' && lum(f.color) < 0.25) { f.colorRef = role('Text').id; }
     }
     // verknüpfte Stellen aktualisieren
     const byId = new Map(d.library.colors.map(c => [c.id, c]));
