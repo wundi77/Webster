@@ -25,7 +25,7 @@ import { BOARD_PRESETS, BREAKPOINTS, DEFAULT_FILL, makeFill, makeShadow, makeStr
 import { FONTS, WEIGHT_NAMES, ensureFont, fontInfo } from '../model/fonts';
 import { cssText, grainUrl, isHeader, nodeCss, slug } from '../model/css';
 import { overrideKeys, PROP_NAMES } from '../model/resolve';
-import { Icons } from '../ui/icons';
+import { Icons, TypeIcon } from '../ui/icons';
 import { ColorField, IconButton, Menu, NumberField, Section, Seg, MOD, ALT, SHIFT } from '../ui/controls';
 import { rgba } from '../model/css';
 import { defaultGradient, gradientCss } from '../model/gradient';
@@ -84,6 +84,7 @@ export function RightPanel() {
           <button key={k} className={`tab${tab === k ? ' active' : ''}`} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
+      <SelectionHead />
       <div className="panel-body">
         {tab === 'design' && <DesignTab />}
         {tab === 'proto' && <ProtoTab />}
@@ -92,6 +93,25 @@ export function RightPanel() {
     </>
   );
 }
+
+/** Kopf der rechten Leiste: was gerade bearbeitet wird */
+function SelectionHead() {
+  const info = useEditor(useShallow(s => {
+    const p = viewPage(s);
+    const sel = s.selection.map(id => p.nodes[id]).filter(Boolean);
+    if (!sel.length) return { type: 'page', name: p.name, sub: 'Seite – nichts ausgewählt', comp: false };
+    if (sel.length > 1) return { type: 'multi', name: `${sel.length} Elemente`, sub: 'Änderungen gelten für alle', comp: false };
+    const n = sel[0];
+    return { type: n.type, name: n.name, sub: TYPE_NAMES[n.type] ?? '', comp: !!n.componentId };
+  }));
+  return (
+    <div className="sel-head">
+      {info.type === 'page' ? <Icons.file className="sel-ico" /> : info.type === 'multi' ? <Icons.copy className="sel-ico" /> : <span className="sel-ico"><TypeIcon type={info.type} instance={info.comp} /></span>}
+      <div className="sel-text"><b title={info.name}>{info.name}</b><span>{info.sub}</span></div>
+    </div>
+  );
+}
+const TYPE_NAMES: Record<string, string> = { board: 'Board', rect: 'Rechteck', ellipse: 'Ellipse', text: 'Text', image: 'Bild', vector: 'Form' };
 
 function DesignTab() {
   const nodes = useSelected();

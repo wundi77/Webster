@@ -45,8 +45,8 @@ export function RegionSection({ node }: { node: WNode }) {
         <div className="field-label">Eigene Kopf- oder Fußzeile</div>
         <p className="hint">Macht dieses Board zur Komponente und setzt es auf allen Seiten ein. Eine vorhandene Kopf- bzw. Fußzeile wird dabei ersetzt.</p>
         <div className="row">
-          <button type="button" className="btn grow" onClick={() => run('header')}>Als Kopfzeile festlegen</button>
-          <button type="button" className="btn grow" onClick={() => run('footer')}>Als Fußzeile festlegen</button>
+          <button type="button" className="btn grow" onClick={() => run('header')}>Als Kopfzeile</button>
+          <button type="button" className="btn grow" onClick={() => run('footer')}>Als Fußzeile</button>
         </div>
         {msg && <p className="proto-hint" aria-live="polite">{msg}</p>}
       </section>

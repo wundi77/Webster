@@ -153,7 +153,7 @@ export function Section({ title, actions, children, empty, summary, defaultOpen 
   };
   const isOpen = fixed || open;
   return (
-    <section ref={ref} className={`section${empty ? ' empty' : ''}${isOpen ? '' : ' closed'}${help ? ' show-help' : ''}`}>
+    <section ref={ref} className={`section sec-fold${empty ? ' empty' : ''}${isOpen ? '' : ' closed'}${help ? ' show-help' : ''}`}>
       <div className="section-head">
         {fixed ? <span>{title}</span> : (
           <button type="button" className="section-toggle" aria-expanded={isOpen} onClick={() => setOpen(!isOpen)}

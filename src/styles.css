@@ -1250,4 +1250,13 @@ body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
 .help-btn:hover { color: var(--text); border-color: var(--text-3); }
 .help-btn.on { background: var(--soft); color: var(--soft-text); border-color: transparent; }
 /* Rechts: Erklärungen erst nach Klick auf „?“ */
-.sidebar.right .section:not(.show-help) :is(.hint, .proto-hint:not(.warn), .field-hint) { display: none; }
+.sidebar.right .section.sec-fold:not(.show-help) :is(.hint, .proto-hint:not(.warn), .field-hint) { display: none; }
+
+/* ---------- Rechte Leiste: Kopf mit dem ausgewählten Element ---------- */
+.sel-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.sel-ico { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; background: var(--soft); color: var(--soft-text); }
+.sel-ico svg { width: 15px; height: 15px; }
+svg.sel-ico { padding: 6px; }
+.sel-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.sel-text b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-text span { color: var(--text-3); font-size: 11px; }
