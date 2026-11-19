@@ -7,7 +7,10 @@ import { randomUUID } from 'node:crypto';
 
 const PORT = Number(process.env.WEBSTER_BRIDGE_PORT || 5199);
 const CALL_TIMEOUT = 30_000;
-const ALLOWED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+// Die Online-Version von Webster darf sich auch verbinden. Weitere Adressen: WEBSTER_ORIGINS="https://a.de,https://b.de"
+const ONLINE_ORIGINS = new Set(['https://wundi77.github.io', ...(process.env.WEBSTER_ORIGINS || '').split(',').map(s => s.trim().replace(/\/$/, '')).filter(Boolean)]);
+const originAllowed = o => !!o && (LOCAL_ORIGIN.test(o) || ONLINE_ORIGINS.has(o));
 
 // ---------- Werkzeuge (Beschreibungen für Claude) ----------
 
@@ -139,9 +142,9 @@ function callEditor(tool, args) {
 
 const server = http.createServer((req, res) => {
   const origin = req.headers.origin;
-  // Nur der Editor auf diesem Rechner darf sich verbinden (Webseiten aus dem Internet werden abgewiesen)
-  if (!origin || !ALLOWED_ORIGIN.test(origin)) { res.writeHead(403); res.end(); return; }
-  res.cors = { 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type', vary: 'origin' };
+  // Nur der Editor auf diesem Rechner oder die Online-Version von Webster darf sich verbinden (andere Webseiten werden abgewiesen)
+  if (!originAllowed(origin)) { res.writeHead(403); res.end(); return; }
+  res.cors = { 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type', 'access-control-allow-private-network': 'true', vary: 'origin' };
   if (req.method === 'OPTIONS') { res.writeHead(204, res.cors); res.end(); return; }
   lastSeen = Date.now();
   const url = new URL(req.url, 'http://x');

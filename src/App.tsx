@@ -10,7 +10,7 @@ import { ExportDialog } from './panels/ExportDialog';
 import { PublishDialog } from './panels/PublishDialog';
 import { IconPicker } from './panels/IconPicker';
 import { ProjectDialog } from './panels/ProjectDialog';
-import { ClaudeNote } from './claude/ClaudeUI';
+import { ClaudeDialog, ClaudeNote } from './claude/ClaudeUI';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { ComponentBar } from './panels/ComponentBar';
 import { AnimBar } from './panels/AnimBar';
@@ -40,6 +40,7 @@ export function App() {
       </div>
       <ExportDialog />
       <PublishDialog />
+      <ClaudeDialog />
       <IconPicker />
       <ProjectDialog />
       <ConfirmDialog />

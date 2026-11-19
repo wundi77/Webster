@@ -23,7 +23,10 @@ interface ClaudeState {
   note: { text: string; at: number } | null;
   /** Kurz hervorgehobene Ebenen */
   flash: { ids: string[]; at: number } | null;
+  /** Fenster „Mit Claude verbinden“ offen? */
+  dialog: boolean;
   toggle: () => void;
+  setEnabled: (v: boolean) => void;
 }
 
 const initial = (() => { try { return localStorage.getItem(ENABLED_KEY) === '1'; } catch { return false; } })();
@@ -33,8 +36,10 @@ export const useClaude = create<ClaudeState>((set, get) => ({
   connected: false,
   note: null,
   flash: null,
-  toggle: () => {
-    const enabled = !get().enabled;
+  dialog: false,
+  toggle: () => get().setEnabled(!get().enabled),
+  setEnabled: (enabled: boolean) => {
+    if (enabled === get().enabled) return;
     set({ enabled, connected: false });
     try { localStorage.setItem(ENABLED_KEY, enabled ? '1' : '0'); } catch { /* egal */ }
     if (enabled) loop(); else abort?.abort();
@@ -53,6 +58,11 @@ async function loop() {
   while (useClaude.getState().enabled) {
     abort = new AbortController();
     try {
+      // Erst kurz nachfragen, damit der Punkt sofort grün wird (die Abfrage danach wartet bis zu 25 s auf Aufträge)
+      if (!useClaude.getState().connected) {
+        const st = await fetch(`${BRIDGE_URL}/status`, { signal: abort.signal, cache: 'no-store' });
+        if (st.ok && useClaude.getState().enabled) useClaude.setState({ connected: true });
+      }
       const res = await fetch(`${BRIDGE_URL}/poll`, { signal: abort.signal, cache: 'no-store' });
       failures = 0;
       if (!useClaude.getState().connected) useClaude.setState({ connected: true });

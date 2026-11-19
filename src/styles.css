@@ -1161,3 +1161,19 @@ body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
 .pub-find { padding: 1px 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .pub-find:hover { text-decoration: underline; }
 .pub-more { font-size: 12px; color: var(--text-3); }
+
+/* Fenster „Mit Claude verbinden“ */
+.dialog.claude-dialog { width: min(560px, 100%); }
+.claude-body { padding: 4px 18px 16px; line-height: 1.5; }
+.claude-body h3 { margin: 18px 0 4px; font-size: 13px; }
+.claude-body .notice.ok { background: rgba(34, 197, 94, 0.12); }
+.claude-status { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-0); }
+.claude-status.ok { border-color: rgba(34, 197, 94, 0.5); }
+.claude-status-text { flex: 1; font-weight: 500; }
+.claude-steps { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 14px; }
+.claude-steps li > div { margin-top: 8px; }
+.claude-copy { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 4px; }
+.claude-copy code { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 7px; background: var(--bg-2); font-size: 12px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; user-select: all; }
+.claude-copy .btn { flex: none; }
+.linkish { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; text-decoration: underline; }
+.claude-copy.plain code { font-family: inherit; font-size: 12.5px; }
