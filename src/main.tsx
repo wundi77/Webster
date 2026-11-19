@@ -9,6 +9,9 @@ if (location.hash.startsWith('#preview')) {
   import('./preview/PreviewApp').then(({ PreviewApp }) => root.render(<StrictMode><PreviewApp /></StrictMode>));
 } else {
   (async () => {
+    // Liegt schon eine neuere Fassung von Webster bereit? Dann gleich diese laden.
+    const { updateOnStart } = await import('./update');
+    if (await updateOnStart()) return;
     // Zuerst das bisherige Dokument retten, bevor irgendetwas die Notfallkopie überschreiben kann
     const persist = await import('./persist');
     await persist.preserveLegacyDocument().catch(() => {});

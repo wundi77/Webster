@@ -11,6 +11,7 @@ import { PublishDialog } from './panels/PublishDialog';
 import { IconPicker } from './panels/IconPicker';
 import { ProjectDialog } from './panels/ProjectDialog';
 import { ClaudeDialog, ClaudeNote } from './claude/ClaudeUI';
+import { UpdateBanner, WhatsNew } from './ui/UpdateUI';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { ComponentBar } from './panels/ComponentBar';
 import { AnimBar } from './panels/AnimBar';
@@ -24,6 +25,7 @@ export function App() {
   const [rw, setRw] = useSidebarWidth('right');
   return (
     <div className="app">
+      <UpdateBanner />
       <TopBar />
       <div className="main">
         <aside className="sidebar left" aria-label="Seiten und Ebenen" style={{ width: lw }}><LeftPanel /></aside>
@@ -44,6 +46,7 @@ export function App() {
       <IconPicker />
       <ProjectDialog />
       <ConfirmDialog />
+      <WhatsNew />
     </div>
   );
 }

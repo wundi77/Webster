@@ -1177,3 +1177,15 @@ body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
 .claude-copy .btn { flex: none; }
 .linkish { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; text-decoration: underline; }
 .claude-copy.plain code { font-family: inherit; font-size: 12.5px; }
+
+/* Neue Version / Was ist neu */
+.update-banner { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--accent); color: #fff; font-size: 13px; }
+.update-banner .muted { color: rgba(255, 255, 255, .8); flex: 1; }
+.update-banner .btn.primary { background: #fff; color: #3a2a9e; border-color: #fff; font-weight: 600; }
+.update-banner .btn.primary:hover { background: #f1efff; filter: none; }
+.update-banner .ibtn { color: #fff; }
+.news-backdrop { z-index: 1100; }
+.dialog.news-dialog { width: min(520px, 100%); }
+.news-body { padding: 4px 20px 14px; line-height: 1.5; }
+.news-body h3 { margin: 14px 0 6px; font-size: 14px; }
+.news-body ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
