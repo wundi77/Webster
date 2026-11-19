@@ -1236,18 +1236,6 @@ function BlurSection({ nodes, upd }: { nodes: WNode[]; upd: Upd }) {
 function PageSettings() {
   const page = useEditor(viewPage);
   const doc = useEditor(s => s.doc);
-  const [kbOpen, setKbOpen] = useState(false);
-  const shortcuts: [string, string][] = [
-    ['V', 'Verschieben'], ['R', 'Rechteck'], ['E', 'Ellipse'], ['T', 'Text'], ['L', 'Linie'], [`${SHIFT}L`, 'Pfeil'], ['I', 'Icon einfügen'], ['K', 'Bild einfügen'], [`${SHIFT}R`, 'Lineale ein/aus'], [`${SHIFT}H`, 'Hilfslinien ein/aus'], [`${SHIFT}G`, 'Spaltenraster ein/aus'],
-    ['H / Leertaste', 'Ansicht verschieben'], ['P', 'Live-Vorschau öffnen'], [`${SHIFT}A`, 'Flex-Layout hinzufügen'],
-    [`${ALT}1 / 2 / 3`, 'Desktop / Tablet / Mobil'],
-    [`${MOD}Z`, 'Rückgängig'], [`${SHIFT}${MOD}Z`, 'Wiederholen'],
-    [`${MOD}C / ${MOD}V`, 'Kopieren / Einfügen'], [`${MOD}D`, 'Duplizieren'], [`${MOD}A`, 'Alles auswählen'],
-    [`${ALT}${MOD}G`, 'In Board packen'], [`${MOD}K`, 'Komponente erstellen'], [`${SHIFT}${MOD}K`, 'Von Komponente lösen'], [`${SHIFT}${MOD}E`, 'Website exportieren'], [`${MOD}↑ / ↓`, 'Ebene nach vorne / hinten'],
-    ['Pfeiltasten', '1 px verschieben (mit ⇧ 10 px)'], [`${SHIFT}0 / 1 / 2`, '100 % / Alles / Auswahl einpassen'],
-    [`${MOD} + Mausrad`, 'Zoomen'], ['Doppelklick', 'Text bearbeiten'], ['Enter', 'Inhalt eines Boards auswählen'],
-    [`${ALT} beim Ziehen`, 'Kopie ziehen'], ['⇧ beim Ziehen', 'Achse / Seitenverhältnis halten'],
-  ];
   return (
     <>
       <Section title="Arbeitsfläche">
@@ -1267,17 +1255,6 @@ function PageSettings() {
         <div className="row"><button className="btn grow" onClick={() => useDialog.getState().show('export')}><Icons.download /> Website exportieren …</button></div>
       </Section>
       <SiteCodeSection />
-      <section className="section">
-        <button type="button" className="kb-toggle" aria-expanded={kbOpen} onClick={() => setKbOpen(o => !o)}>
-          <span>{kbOpen ? 'Tastenkürzel ausblenden' : 'Tastenkürzel einblenden'}</span>
-          <Icons.chevronDown className={kbOpen ? 'kb-chev up' : 'kb-chev'} />
-        </button>
-        {kbOpen && (
-          <dl className="kb-list">
-            {shortcuts.map(([k, l]) => <div key={k}><dt>{l}</dt><dd><kbd>{k}</kbd></dd></div>)}
-          </dl>
-        )}
-      </section>
     </>
   );
 }

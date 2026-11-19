@@ -1,7 +1,12 @@
 // Hinweis „Neue Version“ und Fenster „Was ist neu“
 import { useEffect, useState } from 'react';
 import { reloadToLatest, useUpdate, watchForUpdates } from '../update';
-import { markNewsSeen, seenNews, unseenNews, type NewsEntry } from '../whatsNew';
+import { markNewsSeen, NEWS, seenNews, unseenNews, type NewsEntry } from '../whatsNew';
+import { create } from 'zustand';
+
+/** „Was ist neu?“ von Hand öffnen (Menü „Webster“) */
+export const useNews = create<{ manual: number }>(() => ({ manual: 0 }));
+export const openNews = () => useNews.setState(s => ({ manual: s.manual + 1 }));
 import { useProject } from '../model/project';
 import { useStartup } from '../panels/ProjectDialog';
 import { loadRecent } from '../persist';
@@ -41,6 +46,8 @@ export function WhatsNew() {
       if (returning) setEntries(list); else markNewsSeen();
     })();
   }, []);
+  const manual = useNews(s => s.manual);
+  useEffect(() => { if (manual) setEntries(NEWS.slice(0, 3)); }, [manual]);
   const close = () => { markNewsSeen(); setEntries([]); };
   useEffect(() => {
     if (!entries.length) return;

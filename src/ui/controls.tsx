@@ -158,8 +158,8 @@ export function Seg<T extends string>({ value, options, onChange }: {
 }
 
 /** Aufklapp-Menü (Topbar) */
-export function Menu({ label, children, align = 'left', title }: {
-  label: ReactNode; children: (close: () => void) => ReactNode; align?: 'left' | 'right'; title?: string;
+export function Menu({ label, children, align = 'left', title, btnClass, popClass }: {
+  label: ReactNode; children: (close: () => void) => ReactNode; align?: 'left' | 'right'; title?: string; btnClass?: string; popClass?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -173,10 +173,15 @@ export function Menu({ label, children, align = 'left', title }: {
   }, [open]);
   return (
     <div className="menu" ref={ref}>
-      <button type="button" className={`menu-btn${open ? ' open' : ''}`} title={title} onClick={() => setOpen(o => !o)}>{label}</button>
-      {open && <div className={`menu-pop ${align}`}>{children(() => setOpen(false))}</div>}
+      <button type="button" className={`menu-btn${open ? ' open' : ''}${btnClass ? ' ' + btnClass : ''}`} title={title} aria-label={title} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>{label}</button>
+      {open && <div className={`menu-pop ${align}${popClass ? ' ' + popClass : ''}`} role="menu">{children(() => setOpen(false))}</div>}
     </div>
   );
+}
+
+/** Überschrift einer Gruppe im Menü */
+export function MenuLabel({ children }: { children: ReactNode }) {
+  return <div className="menu-label">{children}</div>;
 }
 
 export function MenuItem({ label, shortcut, onClick, disabled, checked }: { label: string; shortcut?: string; onClick: () => void; disabled?: boolean; checked?: boolean }) {

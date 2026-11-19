@@ -13,6 +13,7 @@ import { ProjectDialog } from './panels/ProjectDialog';
 import { ClaudeDialog, ClaudeNote } from './claude/ClaudeUI';
 import { UpdateBanner, WhatsNew } from './ui/UpdateUI';
 import { ConfirmDialog } from './ui/ConfirmDialog';
+import { ShortcutsDialog } from './ui/Shortcuts';
 import { ComponentBar } from './panels/ComponentBar';
 import { AnimBar } from './panels/AnimBar';
 import { SidebarResizer, useSidebarWidth } from './ui/SidebarResizer';
@@ -47,6 +48,7 @@ export function App() {
       <ProjectDialog />
       <ConfirmDialog />
       <WhatsNew />
+      <ShortcutsDialog />
     </div>
   );
 }
