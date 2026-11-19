@@ -6,6 +6,17 @@ export interface NewsEntry { id: string; title: string; items: string[] }
 
 export const NEWS: NewsEntry[] = [
   {
+    id: '2026-11-19-2',
+    title: 'Neue, aufgeräumte Oberfläche',
+    items: [
+      'Ein Menü „Webster“ (das „W“ oben links) statt „Datei“ und „Ansicht“. Dort findest du auch Tastenkürzel und „Was ist neu?“.',
+      'Links eine Leiste mit vier Bereichen: Seiten & Ebenen, Einfügen, Bibliothek und Verlauf.',
+      'Fertige Abschnitte, Menüs, Formulare und Bausteine findest du jetzt links unter „Einfügen“.',
+      'Rechts heißen die Reiter jetzt „Gestalten“, „Interaktion“ und „Code“. Jede Gruppe lässt sich zuklappen, und der Knopf „?“ zeigt die Erklärungen.',
+      'Der Dunkel-Modus für die fertige Website wurde entfernt. Hell und dunkel gibt es weiter für die Oberfläche von Webster: Sonne bzw. Mond oben rechts.',
+    ],
+  },
+  {
     id: '2026-11-19',
     title: 'Neu in Webster',
     items: [
