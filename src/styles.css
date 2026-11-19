@@ -1250,7 +1250,7 @@ body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
 .help-btn:hover { color: var(--text); border-color: var(--text-3); }
 .help-btn.on { background: var(--soft); color: var(--soft-text); border-color: transparent; }
 /* Rechts: Erklärungen erst nach Klick auf „?“ */
-.sidebar.right .section.sec-fold:not(.show-help) :is(.hint, .proto-hint:not(.warn), .field-hint) { display: none; }
+.sidebar.right .section.sec-fold:not(.show-help) :is(.hint, .proto-hint:not(.warn), .field-hint):not(.keep):not([aria-live]) { display: none; }
 
 /* ---------- Rechte Leiste: Kopf mit dem ausgewählten Element ---------- */
 .sel-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); }

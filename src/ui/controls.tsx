@@ -131,7 +131,7 @@ export function ColorField({ color, opacity, gradient, onChange, allowGradient, 
 
 const SEC_KEY = 'webster.sections';
 const readSec = (): Record<string, boolean> => { try { return JSON.parse(localStorage.getItem(SEC_KEY) ?? '{}'); } catch { return {}; } };
-const HELP_SEL = '.hint, .proto-hint:not(.warn), .field-hint';
+const HELP_SEL = ':is(.hint, .proto-hint:not(.warn), .field-hint):not(.keep):not([aria-live])';
 
 /** Gruppe mit Überschrift: per Klick auf- und zuklappbar (wird gemerkt), „?“ blendet die Erklärungen ein */
 export function Section({ title, actions, children, empty, summary, defaultOpen = true, fixed }: {

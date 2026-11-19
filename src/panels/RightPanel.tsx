@@ -898,7 +898,7 @@ function ImageSection({ node, upd }: { node: WNode; upd: Upd }) {
           Beim Klick groß zeigen
         </label>
       </div>
-      {node.link && <p className="proto-hint">Das Bild hat einen Link – deshalb kann es nicht groß gezeigt werden.</p>}
+      {node.link && <p className="proto-hint keep">Das Bild hat einen Link – deshalb kann es nicht groß gezeigt werden.</p>}
       <div className="lbl-top" title="Kurze Beschreibung, was auf dem Bild zu sehen ist. Hilft blinden Menschen (Vorlesen) und Suchmaschinen.">Bildbeschreibung</div>
       <textarea className="input alt-input" rows={2} aria-label="Bildbeschreibung" disabled={node.alt === ''}
         placeholder={`Was ist zu sehen? (sonst: „${node.name}“)`} value={node.alt ?? ''}
@@ -1092,7 +1092,7 @@ function FillSection({ nodes, upd, isText, isColor, noConic }: { nodes: WNode[];
       actions={rich
         ? <IconButton icon={picking ? <Icons.close /> : <Icons.plus />} title={picking ? 'Auswahl schließen' : 'Füllung hinzufügen'} active={picking} onClick={() => setPicking(!picking)} />
         : <IconButton icon={<Icons.plus />} title="Füllung hinzufügen" onClick={() => add('color')} />}>
-      {mixed && <p className="hint">Unterschiedliche Füllungen – Änderungen übernehmen die Füllung der ersten Ebene für alle.</p>}
+      {mixed && <p className="hint keep">Unterschiedliche Füllungen – Änderungen übernehmen die Füllung der ersten Ebene für alle.</p>}
       {fills.map((f, i) => {
         if (f.kind === 'video') {
           const v = videos.find(x => x.id === f.videoRef);
@@ -1360,7 +1360,7 @@ function ComponentSection({ node }: { node: WNode }) {
   return (
     <section className="section comp-section">
       <div className="comp-head"><Icons.instance /><span><b>{set ? set.name : mainName}</b><br />{root === node.id ? 'Kopie einer Komponente' : `Teil der Kopie „${r.name}“`}</span></div>
-      {!mainExists && <p className="hint">Das Original wurde gelöscht.</p>}
+      {!mainExists && <p className="hint keep">Das Original wurde gelöscht.</p>}
       {variants.length > 1 && (
         <label className="variant-field">Variante
           <select className="select" value={r.componentId} onChange={e => setInstanceVariant(root, e.target.value)}>
@@ -1470,7 +1470,7 @@ function TextTagRow({ nodes }: { nodes: WNode[] }) {
         </select>
       </div>
       {effective === 'h1' && h1s > 1 && <p className="proto-hint warn">Auf dieser Seite gibt es {h1s} Hauptüberschriften (H1). Google erwartet genau eine – die anderen besser als Überschrift 2 einstellen.</p>}
-      {effective !== undefined && effective !== 'h1' && h1s === 0 && /^h[2-4]$/.test(effective) && <p className="proto-hint">Diese Seite hat noch keine Hauptüberschrift (H1). Stelle die wichtigste Überschrift auf „Überschrift 1“.</p>}
+      {effective !== undefined && effective !== 'h1' && h1s === 0 && /^h[2-4]$/.test(effective) && <p className="proto-hint keep">Diese Seite hat noch keine Hauptüberschrift (H1). Stelle die wichtigste Überschrift auf „Überschrift 1“.</p>}
     </>
   );
 }
@@ -1616,7 +1616,7 @@ function LinkSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
               {pops.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
-          {!pops.length && <p className="proto-hint">Füge zuerst links unter „Einfügen“ → „Bewegte Bausteine“ ein Pop-up ein.</p>}
+          {!pops.length && <p className="proto-hint keep">Füge zuerst links unter „Einfügen“ → „Bewegte Bausteine“ ein Pop-up ein.</p>}
         </>
       )}
       <TooltipField nodes={nodes} ids={ids} />
@@ -1731,7 +1731,7 @@ function ScrollSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
           {parent && board && parent.id !== board.id && <> Achtung: Klappt nur innerhalb von „{parent.name}“ – für die ganze Seite die Ebene direkt ins Webseiten-Board legen.</>}
         </p>
       )}
-      {!inFlow && one && choice === 'none' && <p className="proto-hint">„Oben fixieren – nimmt Platz ein“ geht nur bei Ebenen in einem Layout.</p>}
+      {!inFlow && one && choice === 'none' && <p className="proto-hint keep">„Oben fixieren – nimmt Platz ein“ geht nur bei Ebenen in einem Layout.</p>}
       {pin?.mode === 'fixed' && (
         <>
           <div className="row">
@@ -1765,7 +1765,7 @@ function ScrollSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
 
       <div className="field-label" style={{ marginTop: 10 }}>Aussehen nach dem Scrollen</div>
       {keys.length > 0
-        ? <p className="proto-hint">Ändert nach dem Scrollen: {keys.map(k => HOVER_NAMES[k] ?? k).join(', ')}</p>
+        ? <p className="proto-hint keep">Ändert nach dem Scrollen: {keys.map(k => HOVER_NAMES[k] ?? k).join(', ')}</p>
         : <p className="proto-hint">Z. B. eine kleinere Kopfzeile mit kleinerem Logo. Auch Kinder-Ebenen (Logo, Text) können sich ändern oder ein- und ausblenden.</p>}
       <div className="row">
         <button className={`btn grow${state === 'scrolled' ? ' active' : ''}`}

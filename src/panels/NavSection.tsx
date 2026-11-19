@@ -44,7 +44,7 @@ export function NavSection({ node }: { node: WNode }) {
         </select>
       </div>
       {!own && <p className="proto-hint">Oben fixieren und eine kleinere Version nach dem Scrollen: im Reiter „Interaktion“ unter „Beim Scrollen“.</p>}
-      {own && !links && <p className="proto-hint">Noch kein Menü-Bereich gewählt – oben bei der Kopfzeile unter „Menü-Bereich“.</p>}
+      {own && !links && <p className="proto-hint keep">Noch kein Menü-Bereich gewählt – oben bei der Kopfzeile unter „Menü-Bereich“.</p>}
       {nav.collapse !== 'never' && (
         <>
           <div className="field"><div className="field-label">Farbe des ☰-Symbols</div>
@@ -98,7 +98,7 @@ export function NavInsertSection() {
       <p className="proto-hint">{exists
         ? 'Die Kopfleiste ist eine Komponente: Änderst du sie auf einer Seite (das Original), ändert sie sich überall.'
         : 'Fügt oben auf allen Seiten eine fertige Kopfleiste mit Logo-Text und Links zu allen Seiten ein. Auf dem Handy wird das Menü zum ☰-Symbol.'}</p>
-      {!exists && <p className="proto-hint">Lieber selbst bauen? Ein Board zeichnen, gestalten und rechts „Als Kopfzeile festlegen“ wählen.</p>}
+      {!exists && <p className="proto-hint">Lieber selbst bauen? Ein Board zeichnen, gestalten und rechts „Als Kopfzeile“ wählen.</p>}
       <div className="row"><button type="button" className="btn grow" onClick={() => {
         const r = insertHeader();
         setMsg(exists ? (r.links || r.pages ? `${r.links} Menüpunkt(e) ergänzt, auf ${r.pages} Seite(n) eingefügt.` : 'Alles aktuell.') : `Kopfleiste auf ${r.pages} Seite(n) eingefügt.`);
