@@ -1,5 +1,5 @@
 // Fertige Abschnitte: Kopfbereich, Vorteile, Bild und Text, Zahlen, Stimmen, Preise, Aufruf, Kontakt.
-// Farben hängen an den Farbrollen (Hauptfarbe, Akzent, Hintergrund, Fläche, Text, Text leise) – Farbschema und Dunkel-Modus wirken sofort.
+// Farben hängen an den Farbrollen (Hauptfarbe, Akzent, Hintergrund, Fläche, Text, Text leise) – ein Farbschema wirkt sofort.
 // Abstände hängen an den Abstands-Stufen.
 import { useEditor } from '../store';
 import { BREAKPOINTS, createNode, defaultTextStyle, makeFill, makeLayout, makeShadow, makeStroke } from './factory';
@@ -137,7 +137,7 @@ const heroSplit = () => {
 const heroColor = () => {
   const main = C.colors.find(c => c.name === 'Hauptfarbe')?.color ?? FALLBACK.Hauptfarbe;
   const acc = C.colors.find(c => c.name === 'Akzent')?.color ?? FALLBACK.Akzent;
-  // zweite Verlaufsfarbe: Richtung Akzent, aber nur so weit, dass weiße Schrift gut lesbar bleibt (Verlauf wechselt im Dunkel-Modus nicht)
+  // zweite Verlaufsfarbe: Richtung Akzent, aber nur so weit, dass weiße Schrift gut lesbar bleibt
   const mixHex = (a: string, b: string, t: number) => '#' + [1, 3, 5].map(i => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('');
   const rgb = (h: string): [number, number, number] => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
   let end = main;

@@ -6,7 +6,7 @@ import { slug } from '../model/css';
 import { fontHrefFor, type FontUse } from '../model/fonts';
 import { defaultSeo, defaultSite } from '../model/factory';
 import { LOTTIE_PLAYER } from './lottiePlayer';
-import { BASE_CSS, EMBED_CSS, EMBED_JS, MOTION_CSS, MOTION_JS, LOTTIE_JS, siteFxCss, darkModeCss, FORM_CSS, FORM_JS, NAV_CSS, NAV_JS, REVEAL_JS, scrollJs, classNames, esc, groupFonts, pageFiles, renderPageParts, siteRoot } from './html';
+import { BASE_CSS, EMBED_CSS, EMBED_JS, MOTION_CSS, MOTION_JS, LOTTIE_JS, siteFxCss, FORM_CSS, FORM_JS, NAV_CSS, NAV_JS, REVEAL_JS, scrollJs, classNames, esc, groupFonts, pageFiles, renderPageParts, siteRoot } from './html';
 
 export interface ExportWarning { pageId: string | null; text: string }
 
@@ -245,7 +245,7 @@ export async function exportSite(doc: WDocument, opts: ExportOptions): Promise<E
     files['robots.txt'] = strToU8('User-agent: *\nAllow: /\n');
   }
 
-  files['css/style.css'] = strToU8(`/* Erstellt mit Webster */\n\n${BASE_CSS}\n\n${anyNav ? NAV_CSS + '\n\n' : ''}${anyForm ? FORM_CSS + '\n\n' : ''}${anyEmbed ? EMBED_CSS + '\n\n' : ''}${anyMotion ? MOTION_CSS + '\n\n' : ''}${siteFxCss(site) ? siteFxCss(site) + '\n\n' : ''}${darkModeCss(doc) ? darkModeCss(doc) + '\n\n' : ''}${cssSections.join('\n\n')}\n${site.css?.trim() ? `\n/* ===== Eigenes CSS der Website ===== */\n\n${site.css.trim()}\n` : ''}`);
+  files['css/style.css'] = strToU8(`/* Erstellt mit Webster */\n\n${BASE_CSS}\n\n${anyNav ? NAV_CSS + '\n\n' : ''}${anyForm ? FORM_CSS + '\n\n' : ''}${anyEmbed ? EMBED_CSS + '\n\n' : ''}${anyMotion ? MOTION_CSS + '\n\n' : ''}${siteFxCss(site) ? siteFxCss(site) + '\n\n' : ''}${cssSections.join('\n\n')}\n${site.css?.trim() ? `\n/* ===== Eigenes CSS der Website ===== */\n\n${site.css.trim()}\n` : ''}`);
 
   const zipInput: Zippable = {};
   const folder = slug(site.name || doc.name) || 'website';

@@ -18,7 +18,7 @@ import { Icons } from '../ui/icons';
 import { ColorField, IconButton, MOD, NumberField, SHIFT } from '../ui/controls';
 import { askConfirm } from '../ui/ConfirmDialog';
 import { newAnimation, openAnimation } from '../model/anim';
-import { PALETTES, applyPalette, setColorDark } from '../model/theme';
+import { PALETTES, applyPalette } from '../model/theme';
 
 export const ASSET_MIME = 'application/x-webster-asset';
 
@@ -216,7 +216,6 @@ function ColorsGroup({ doc }: { doc: WDocument }) {
           <div className="asset-line" onClick={() => hasSel && applyColor(c.id)}
             title={hasSel ? 'Klicken: als Füllung auf die Auswahl anwenden' : 'Wähle Ebenen aus, um die Farbe anzuwenden'}>
             <span className="swatch-dot" style={{ background: rgba(c.color, c.opacity) }} />
-            {c.dark && <span className="swatch-dot" title="Dunkel-Farbe" style={{ background: rgba(c.dark.color, c.dark.opacity), marginLeft: -10 }} />}
             {renaming === c.id
               ? <Rename value={c.name} onDone={v => { if (v) updateColor(c.id, { name: v }); setRenaming(null); }} />
               : <span className="asset-name" onDoubleClick={e => { e.stopPropagation(); setRenaming(c.id); }}>{c.name}</span>}
@@ -229,13 +228,6 @@ function ColorsGroup({ doc }: { doc: WDocument }) {
           {editing === c.id && (
             <div className="asset-edit">
               <div className="row"><ColorField color={c.color} opacity={c.opacity} onChange={v => updateColor(c.id, { ...(v.color !== undefined ? { color: v.color } : {}), ...(v.opacity !== undefined ? { opacity: v.opacity } : {}) })} /></div>
-              <div className="row">
-                <span className="lbl" title="Diese Farbe zeigt die Seite, wenn der Besucher sein Gerät auf dunkel gestellt hat (Dunkel-Modus rechts unter „Webseite“ einschalten)">Im Dunkel-Modus</span>
-                {c.dark
-                  ? <><ColorField color={c.dark.color} opacity={c.dark.opacity} onChange={v => setColorDark(c.id, { color: v.color ?? c.dark!.color, opacity: v.opacity ?? c.dark!.opacity })} />
-                    <IconButton icon={<Icons.trash />} title="Keine eigene Dunkel-Farbe" onClick={() => setColorDark(c.id, null)} /></>
-                  : <button type="button" className="btn small" onClick={() => setColorDark(c.id, { color: c.color, opacity: c.opacity })}>Dunkel-Farbe festlegen</button>}
-              </div>
               <p className="hint">Wird {colorUsage(doc, c.id)}× verwendet. Doppelklick auf den Namen zum Umbenennen.</p>
             </div>
           )}
@@ -249,7 +241,7 @@ function PaletteMenu() {
   const [open, setOpen] = useState(false);
   return (
     <div className="palette-box">
-      <button type="button" className="btn small grow" onClick={() => setOpen(!open)} title="Fertige Farbrollen anlegen: Hauptfarbe, Akzent, Hintergrund, Fläche, Text, Text leise – jeweils mit Dunkel-Farbe">
+      <button type="button" className="btn small grow" onClick={() => setOpen(!open)} title="Fertige Farbrollen anlegen: Hauptfarbe, Akzent, Hintergrund, Fläche, Text, Text leise">
         {open ? 'Farbschema schließen' : 'Farbschema anlegen …'}
       </button>
       {open && (
@@ -258,11 +250,10 @@ function PaletteMenu() {
             <button key={p.id} type="button" className="palette-item" title={`„${p.name}“ anlegen. Gibt es die Farbrollen schon, werden sie ersetzt – überall, wo sie verwendet werden.`}
               onClick={() => { applyPalette(p); setOpen(false); }}>
               <span className="palette-dots">{p.roles.slice(0, 6).map(r => <span key={r[0]} style={{ background: r[1] }} />)}</span>
-              <span className="palette-dots dark">{p.roles.slice(0, 6).map(r => <span key={r[0]} style={{ background: r[2] }} />)}</span>
               <span className="palette-name">{p.name}</span>
             </button>
           ))}
-          <p className="hint">Obere Reihe hell, untere Reihe dunkel. Danach kannst du jede Farbe einzeln anpassen.</p>
+          <p className="hint">Danach kannst du jede Farbe einzeln anpassen.</p>
         </div>
       )}
     </div>

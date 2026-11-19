@@ -388,7 +388,7 @@ export interface SiteSettings {
   pageTransition?: 'none' | 'fade' | 'slide';
   /** Bewegungs-Stil der ganzen Seite: macht alle Bewegungen ruhiger oder lebhafter */
   motionStyle?: 'calm' | 'normal' | 'lively';
-  /** Dunkel-Modus: folgt der Einstellung des Geräts (auto) */
+  /** früherer Dunkel-Modus der Website – wird nicht mehr benutzt, nur noch toleriert */
   darkMode?: 'off' | 'auto';
   /** Besucher-Statistik mit Plausible (ohne Cookies): Domain wie bei Plausible eingetragen, optional eigener Server */
   analytics?: { domain: string; host?: string } | null;
@@ -408,7 +408,7 @@ export interface Page {
   nodes: Record<string, WNode>;
 }
 
-export interface ColorAsset { id: string; name: string; color: string; opacity: number; /** Farbe im Dunkel-Modus (fehlt = gleiche Farbe) */ dark?: { color: string; opacity: number } | null }
+export interface ColorAsset { id: string; name: string; color: string; opacity: number; /** früher: Farbe im Dunkel-Modus – wird nicht mehr benutzt */ dark?: { color: string; opacity: number } | null }
 
 /** Typografie eines Textstils (ohne Ausrichtung und Unterstreichung) */
 export type TypoKey = 'fontFamily' | 'fontSize' | 'fontWeight' | 'lineHeight' | 'letterSpacing' | 'italic' | 'transform';

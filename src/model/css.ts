@@ -19,16 +19,9 @@ const grainSize = (f: Fill) => (f.grain === 'coarse' ? '220px 220px' : '160px 16
 /** Hintergrund-Ebene, die als eigenes Element gezeichnet wird (Video) */
 export const videoFillOf = (n: WNode) => n.fills.find(f => f.visible && f.kind === 'video' && f.videoRef);
 
-/**
- * Dunkel-Modus beim Export: verknüpfte Farben mit Dunkel-Variante werden zu CSS-Variablen,
- * damit Hover, Scrollen, Animationen und Hintergrund automatisch mitwechseln.
- */
-let darkIds: Set<string> | null = null;
-export function setDarkPaints(ids: Set<string> | null) { darkIds = ids; }
 type PaintLike = { color: string; opacity: number; colorRef?: string | null };
 export function paintCss(p: PaintLike): string {
-  const c = rgba(p.color, p.opacity);
-  return darkIds && p.colorRef && darkIds.has(p.colorRef) ? `var(--wc-${p.colorRef}, ${c})` : c;
+  return rgba(p.color, p.opacity);
 }
 
 export function rgba(hex: string, opacity = 1): string {

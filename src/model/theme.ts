@@ -1,25 +1,8 @@
-// Farbschema und Dunkel-Modus
+// Farbschemata
 import { useEditor } from '../store';
 import { uid } from './factory';
-import type { ColorAsset, WNode } from './types';
 
-const cache = new WeakMap<WNode, { cs: ColorAsset[]; r: WNode }>();
-/** Ebene mit den Dunkel-Farben (nur verknüpfte Farben mit Dunkel-Variante) – für die Ansicht auf der Arbeitsfläche */
-export function withDark(n: WNode, cs: ColorAsset[]): WNode {
-  const c = cache.get(n);
-  if (c && c.cs === cs) return c.r;
-  const dark = new Map(cs.filter(x => x.dark).map(x => [x.id, x.dark!]));
-  const sw = <T extends { colorRef?: string | null; color: string; opacity: number }>(p: T): T => {
-    const d = p.colorRef ? dark.get(p.colorRef) : undefined;
-    return d ? { ...p, color: d.color, opacity: d.opacity } : p;
-  };
-  const touches = [...n.fills, ...n.strokes, ...n.shadows].some(p => p.colorRef && dark.has(p.colorRef));
-  const r = touches ? { ...n, fills: n.fills.map(sw), strokes: n.strokes.map(sw), shadows: n.shadows.map(sw) } : n;
-  cache.set(n, { cs, r });
-  return r;
-}
-
-/** Farbrollen eines Farbschemas: Name, hell, dunkel */
+/** Farbrollen eines Farbschemas: Name, Farbe (der dritte Wert ist ein früherer Dunkel-Wert und wird nicht mehr benutzt) */
 type Role = [string, string, string];
 export interface Palette { id: string; name: string; roles: Role[] }
 export const PALETTES: Palette[] = [
@@ -34,12 +17,12 @@ export const PALETTES: Palette[] = [
 /** Farbschema anlegen bzw. die gleichnamigen Farben aktualisieren (verknüpfte Stellen ziehen mit) */
 export function applyPalette(p: Palette) {
   useEditor.getState().mutate((_, d) => {
-    for (const [name, light, dark] of p.roles) {
+    for (const [name, light] of p.roles) {
       const ex = d.library.colors.find(c => c.name === name);
-      if (ex) { ex.color = light; ex.opacity = 1; ex.dark = { color: dark, opacity: 1 }; }
-      else d.library.colors.push({ id: uid(), name, color: light, opacity: 1, dark: { color: dark, opacity: 1 } });
+      if (ex) { ex.color = light; ex.opacity = 1; delete ex.dark; }
+      else d.library.colors.push({ id: uid(), name, color: light, opacity: 1 });
     }
-    // Weißer Seitenhintergrund und fast schwarze Texte an die Rollen hängen – sonst wird im Dunkel-Modus Text unlesbar
+    // Weißer Seitenhintergrund und fast schwarze Texte an die Rollen hängen – so ziehen sie beim nächsten Farbschema mit
     const role = (n: string) => d.library.colors.find(c => c.name === n)!;
     const lum = (hex: string) => { const h = hex.replace('#', ''); const v = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
     const all = [...d.pages, ...(d.componentPages ?? [])];
@@ -56,10 +39,6 @@ export function applyPalette(p: Palette) {
       const n = pg.nodes[id];
       for (const x of [...n.fills, ...n.strokes, ...n.shadows]) { const c = x.colorRef ? byId.get(x.colorRef) : undefined; if (c) { x.color = c.color; x.opacity = c.opacity; } }
     }
-    d.site = { ...(d.site ?? { name: d.name, lang: 'de', url: '', favicon: null, selfHostFonts: false }), darkMode: d.site?.darkMode ?? 'auto' };
+    if (d.site) delete d.site.darkMode;
   }, { key: 'palette' });
-}
-
-export function setColorDark(id: string, dark: { color: string; opacity: number } | null) {
-  useEditor.getState().mutate((_, d) => { const c = d.library.colors.find(x => x.id === id); if (c) c.dark = dark; }, { key: 'color-dark-' + id });
 }

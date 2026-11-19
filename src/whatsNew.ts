@@ -11,7 +11,7 @@ export const NEWS: NewsEntry[] = [
     items: [
       'Mit Claude verbinden: Der Knopf „Claude“ öffnet jetzt eine Anleitung. Jeder verbindet sein eigenes Claude.',
       'Fertige Abschnitte: Kopfbereiche, Vorteile, Preise, Fragen, Stimmen, Kontakt – mit einem Klick einfügen.',
-      'Farbschemata mit Dunkel-Modus und einheitliche Abstände (S, M, L, XL).',
+      'Farbschemata und einheitliche Abstände (S, M, L, XL).',
       'Neue Bausteine: Akkordeon, Reiter, Pop-up und Hinweis-Texte.',
       'Bilder: Großansicht per Klick, wichtiger Bildpunkt, Bildbeschreibung.',
       'Bewegung: Linien zeichnen sich selbst, Ebenen in die Tiefe staffeln, Animation beim Scrollen oder per Knopf.',

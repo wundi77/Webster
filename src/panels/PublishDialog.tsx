@@ -96,7 +96,6 @@ function useChecks(): Check[] {
   const show = (f: Finding) => { openPage(f.page.id); useEditor.getState().setSelection([f.nodeId]); };
   const KINDS: [Finding['kind'], Level, string, string][] = [
     ['contrast', 'warn', 'Schwer lesbar (zu wenig Kontrast zum Hintergrund)', 'Text kräftiger färben oder Hintergrund ändern.'],
-    ['dark', 'warn', 'Dunkel-Modus', ''],
     ['link', 'warn', 'Links ohne Ziel', 'Beim Klick passiert nichts.'],
     ['big', 'info', 'Große Bilder', 'Kleiner speichern (z. B. 1600 px breit, als JPG oder WebP) – dann lädt die Seite schneller.'],
     ['alt', 'info', 'Bilder ohne Beschreibung', 'Bild auswählen → „Bildbeschreibung“ ausfüllen (oder „Nur Schmuck“ ankreuzen). Hilft Vorleseprogrammen und Google.'],
@@ -110,7 +109,7 @@ function useChecks(): Check[] {
         {list.length > 6 && <span className="pub-more">… und {list.length - 6} weitere</span>}</span>
     </>, action: { label: 'Zeigen', run: () => show(list[0]) } });
   }
-  if (!found.some(f => f.kind === 'contrast')) out.push({ id: 'pc-contrast', level: 'ok', text: <>Alle Texte sind gut lesbar (genug Kontrast{doc.site?.darkMode === 'auto' ? ', auch im Dunkel-Modus' : ''}).</> });
+  if (!found.some(f => f.kind === 'contrast')) out.push({ id: 'pc-contrast', level: 'ok', text: <>Alle Texte sind gut lesbar (genug Kontrast).</> });
   if (!found.some(f => f.kind === 'link')) out.push({ id: 'pc-link', level: 'ok', text: <>Alle Links haben ein Ziel.</> });
 
   const seoMissing = doc.pages.filter(p => { const s = { ...defaultSeo(), ...p.seo }; return siteRoot(p) && (!s.title || !s.description); });

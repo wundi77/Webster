@@ -730,32 +730,11 @@ function SiteSection({ site }: { site: WNode }) {
   );
 }
 
-/** Dunkel-Modus und Abstands-Stufen */
+/** Abstands-Stufen */
 function DesignRows() {
-  const dm = useEditor(s => s.doc.site?.darkMode ?? 'off');
-  const dv = useEditor(s => s.darkView);
-  const hasDark = useEditor(s => s.doc.library.colors.some(c => c.dark));
   const space = useEditor(useShallow(s => spaceOf(s.doc)));
-  const setDm = (v: 'off' | 'auto') => useEditor.getState().mutate((_, d) => { d.site = { ...(d.site ?? { name: d.name, lang: 'de', url: '', favicon: null, selfHostFonts: false }), darkMode: v }; }, { key: 'darkMode' });
   return (
     <>
-      <div className="row">
-        <span className="lbl">Dunkel-Modus</span>
-        <Seg value={dm} onChange={v => setDm(v as 'off' | 'auto')} options={[
-          { value: 'off', icon: <span>Aus</span>, title: 'Die Seite sieht immer gleich aus' },
-          { value: 'auto', icon: <span>Automatisch</span>, title: 'Hat der Besucher sein Gerät auf dunkel gestellt, zeigt die Seite die Dunkel-Farben' },
-        ]} />
-      </div>
-      {dm === 'auto' && (
-        <div className="row">
-          <span className="lbl">Ansehen</span>
-          <Seg value={dv ? 'dark' : 'light'} onChange={v => useEditor.getState().setDarkView(v === 'dark')} options={[
-            { value: 'light', icon: <span>Hell</span>, title: 'Arbeitsfläche mit den normalen Farben' },
-            { value: 'dark', icon: <span>Dunkel</span>, title: 'Arbeitsfläche so zeigen, wie die Seite im Dunkel-Modus aussieht' },
-          ]} />
-        </div>
-      )}
-      {dm === 'auto' && !hasDark && <p className="proto-hint">Noch keine Farbe hat eine Dunkel-Variante. Lege links unter „Farben“ ein Farbschema an oder gib einer Farbe eine Dunkel-Farbe.</p>}
       <div className="row space-steps">
         <span className="lbl" title="Feste Abstands-Stufen S, M, L, XL. Änderst du eine Stufe, ändern sich alle Abstände, die diese Stufe benutzen.">Abstände</span>
         {SPACE_TOKENS.map(t => (
