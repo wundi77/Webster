@@ -10,6 +10,7 @@ export const NEWS: NewsEntry[] = [
     title: 'Neue, aufgeräumte Oberfläche',
     items: [
       'Ein Menü „Webster“ (das „W“ oben links) statt „Datei“ und „Ansicht“. Dort findest du auch Tastenkürzel und „Was ist neu?“.',
+      'Neuer Startbildschirm: neues Projekt anlegen, zuletzt geöffnete Projekte und Neuigkeiten auf einen Blick.',
       'Links eine Leiste mit vier Bereichen: Seiten & Ebenen, Einfügen, Bibliothek und Verlauf.',
       'Fertige Abschnitte, Menüs, Formulare und Bausteine findest du jetzt links unter „Einfügen“.',
       'Rechts heißen die Reiter jetzt „Gestalten“, „Interaktion“ und „Code“. Jede Gruppe lässt sich zuklappen, und der Knopf „?“ zeigt die Erklärungen.',
