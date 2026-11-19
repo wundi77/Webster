@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useEditor } from './store';
 import { useShortcuts } from './shortcuts';
 import { TopBar } from './panels/TopBar';
-import { LeftPanel } from './panels/LeftPanel';
+import { LeftPanel, LeftRail } from './panels/LeftPanel';
 import { RightPanel } from './panels/RightPanel';
 import { Toolbar } from './panels/Toolbar';
 import { Canvas } from './canvas/Canvas';
@@ -29,7 +29,8 @@ export function App() {
       <UpdateBanner />
       <TopBar />
       <div className="main">
-        <aside className="sidebar left" aria-label="Seiten und Ebenen" style={{ width: lw }}><LeftPanel /></aside>
+        <LeftRail />
+        <aside className="sidebar left" aria-label="Linke Leiste" style={{ width: lw }}><LeftPanel /></aside>
         <SidebarResizer side="left" width={lw} onChange={setLw} />
         <div className="canvas-wrap">
           <Canvas />

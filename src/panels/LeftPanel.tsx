@@ -1,10 +1,18 @@
 import { isAnimInstance } from '../model/animCore';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { create } from 'zustand';
+import { SectionsInsertSection } from './SectionsInsert';
+import { NavInsertSection } from './NavSection';
+import { FormInsertSection } from './FormSection';
+import { EmbedInsertSection } from './EmbedSection';
+import { BlocksInsertSection } from './BlocksSection';
+import { CodeInsertSection } from './CodeSection';
+import { useDialog } from './SiteSettings';
 import { useEditor, viewPage } from '../store';
 import { Icons, TypeIcon } from '../ui/icons';
 import { IconButton } from '../ui/controls';
 import {
-  addPage, addPageFromTemplate, addTemplate, containerOf, deletePage, deleteTemplate, duplicatePage, duplicateTemplate, movePage, renamePage,
+  addPage, addPageFromTemplate, openImagePicker, addTemplate, containerOf, deletePage, deleteTemplate, duplicatePage, duplicateTemplate, movePage, renamePage,
   renameTemplate, saveAsTemplate, setHomePage, reparent, topLevel, updateNodes,
 } from '../model/commands';
 import { isAncestor } from '../model/geometry';
@@ -16,19 +24,73 @@ import type { Page } from '../model/types';
 import { withScrolled } from '../model/hover';
 const NO_PAGES: Page[] = [];
 
+export type LeftArea = 'layers' | 'insert' | 'library' | 'history';
+const AREA_KEY = 'webster.leftArea';
+const AREAS: { id: LeftArea; label: string; sub: string; icon: ReactNode }[] = [
+  { id: 'layers', label: 'Seiten & Ebenen', sub: 'Seiten deiner Website und was darauf liegt', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden="true"><path d="M8 2l6 3-6 3-6-3 6-3z" /><path d="M2 8l6 3 6-3" /><path d="M2 11l6 3 6-3" /></svg> },
+  { id: 'insert', label: 'Einfügen', sub: 'Fertige Abschnitte und Bausteine – Klick fügt ein', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="3" /><path d="M8 5v6M5 8h6" /></svg> },
+  { id: 'library', label: 'Bibliothek', sub: 'Komponenten, Farben, Schriften und Bilder dieses Projekts', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6" /><circle cx="6" cy="6.5" r="1" /><circle cx="10" cy="6.5" r="1" /><circle cx="6.5" cy="10.5" r="1" /></svg> },
+  { id: 'history', label: 'Verlauf', sub: 'Klick auf einen Schritt springt dorthin zurück', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 5v3l2 2" /></svg> },
+];
+const loadArea = (): LeftArea => { try { const v = localStorage.getItem(AREA_KEY); if (AREAS.some(a => a.id === v)) return v as LeftArea; } catch { /* kein Speicher */ } return 'layers'; };
+/** Welcher Bereich links offen ist */
+export const useLeftArea = create<{ area: LeftArea; setArea: (a: LeftArea) => void }>(set => ({
+  area: loadArea(),
+  setArea: area => { set({ area }); try { localStorage.setItem(AREA_KEY, area); } catch { /* kein Speicher */ } },
+}));
+
+/** Schmale Symbolleiste ganz links: ein Bereich zur Zeit */
+export function LeftRail() {
+  const { area, setArea } = useLeftArea();
+  return (
+    <nav className="rail" aria-label="Bereiche" role="tablist" aria-orientation="vertical">
+      {AREAS.map(a => (
+        <button key={a.id} type="button" role="tab" aria-selected={area === a.id} aria-label={a.label} title={a.label}
+          className={`rail-btn${area === a.id ? ' on' : ''}`} onClick={() => setArea(a.id)}>
+          {a.icon}<span className="rail-label">{a.id === 'layers' ? 'Seiten' : a.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 export function LeftPanel() {
-  const [tab, setTab] = useState<'layers' | 'assets' | 'history'>('layers');
+  const area = useLeftArea(s => s.area);
+  const a = AREAS.find(x => x.id === area)!;
   return (
     <>
-      <div className="tabs" role="tablist">
-        <button className={`tab${tab === 'layers' ? ' active' : ''}`} role="tab" aria-selected={tab === 'layers'} onClick={() => setTab('layers')}>Ebenen</button>
-        <button className={`tab${tab === 'assets' ? ' active' : ''}`} role="tab" aria-selected={tab === 'assets'} onClick={() => setTab('assets')}>Assets</button>
-        <button className={`tab${tab === 'history' ? ' active' : ''}`} role="tab" aria-selected={tab === 'history'} onClick={() => setTab('history')}>Protokoll</button>
+      <div className="area-head">
+        <h2>{a.label}</h2>
+        <span>{a.sub}</span>
       </div>
-      <div className="panel-body">
-        {tab === 'layers' ? <><TemplatesSection /><PagesSection /><LayersSection /></> : tab === 'assets' ? <AssetsPanel /> : <HistoryPanel />}
+      <div className="panel-body" role="tabpanel" aria-label={a.label}>
+        {area === 'layers' ? <><PagesSection /><TemplatesSection /><LayersSection /></>
+          : area === 'insert' ? <InsertPanel />
+          : area === 'library' ? <AssetsPanel />
+          : <HistoryPanel />}
       </div>
     </>
+  );
+}
+
+/** Bereich „Einfügen“: alles, was man auf die Seite setzen kann */
+function InsertPanel() {
+  return (
+    <div className="insert-panel">
+      <section className="section">
+        <div className="insert-quick">
+          <button type="button" className="btn" onClick={() => { useEditor.getState().setTool('move'); useDialog.getState().show('icons'); }}><Icons.smile /> Icon …</button>
+          <button type="button" className="btn" onClick={() => { useEditor.getState().setTool('move'); openImagePicker(); }}><Icons.image /> Bild …</button>
+        </div>
+        <p className="hint">Formen und Text zeichnest du mit der Werkzeugleiste über der Arbeitsfläche.</p>
+      </section>
+      <SectionsInsertSection />
+      <NavInsertSection />
+      <FormInsertSection />
+      <EmbedInsertSection />
+      <BlocksInsertSection />
+      <CodeInsertSection />
+    </div>
   );
 }
 
@@ -145,11 +207,20 @@ function TemplatesSection() {
   const del = async (id: string, name: string) => {
     if (await askConfirm({ title: 'Vorlage wirklich löschen?', message: `„${name}“ wird gelöscht. Seiten, die aus ihr erstellt wurden, bleiben unverändert. Rückgängig mit ⌘Z.`, confirmLabel: 'Löschen', danger: true })) deleteTemplate(id);
   };
+  const onTemplate = templates.some(t => t.id === pageId);
+  const [openState, setOpen] = useState(false);
+  const open = openState || onTemplate;
   return (
-    <section className="section pages templates">
-      <div className="section-head"><span>Vorlagen</span>
-        <IconButton icon={<Icons.plus />} title="Neue, leere Vorlage anlegen" onClick={addTemplate} />
+    <section className={`section pages templates${open ? '' : ' closed'}`}>
+      <div className="section-head">
+        <button type="button" className="section-toggle" aria-expanded={open} onClick={() => setOpen(!open)} title={open ? 'Zuklappen' : 'Aufklappen'}>
+          <svg className="sec-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 3.8 5 6.3l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <span className="sec-title">Vorlagen</span>
+          {!open && <span className="sec-sum">{templates.length ? templates.length : 'Muster für neue Seiten'}</span>}
+        </button>
+        {open && <IconButton icon={<Icons.plus />} title="Neue, leere Vorlage anlegen" onClick={addTemplate} />}
       </div>
+      {open && <>
       {!templates.length && (
         <p className="hint">Muster für neue Seiten, z. B. mit festem Raster. Mit „+“ anlegen oder per Rechtsklick auf eine Seite „Als Vorlage speichern“. Neue Seiten sind unabhängige Kopien.</p>
       )}
@@ -188,6 +259,7 @@ function TemplatesSection() {
           { label: 'Vorlage löschen', action: () => del(t.id, t.name) },
         ]} />;
       })()}
+      </>}
     </section>
   );
 }

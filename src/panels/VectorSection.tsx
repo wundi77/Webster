@@ -67,7 +67,7 @@ export function VectorSection({ node }: { node: WNode }) {
         </div>
       )}
       {(v.kind === 'icon' || v.kind === 'svg') && (
-        <div className="field-hint">Tipp: Als Link klickbar machen im Reiter „Elemente“. Der Ebenenname wird dann für Screenreader vorgelesen.</div>
+        <div className="field-hint">Tipp: Als Link klickbar machen im Reiter „Interaktion“. Der Ebenenname wird dann für Screenreader vorgelesen.</div>
       )}
     </Section>
   );

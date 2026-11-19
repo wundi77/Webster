@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { rgba } from '../model/css';
 import type { Gradient } from '../model/types';
 import { gradientCss, gradientLabel } from '../model/gradient';
@@ -129,11 +129,50 @@ export function ColorField({ color, opacity, gradient, onChange, allowGradient, 
   );
 }
 
-export function Section({ title, actions, children, empty }: { title: string; actions?: ReactNode; children?: ReactNode; empty?: boolean }) {
+const SEC_KEY = 'webster.sections';
+const readSec = (): Record<string, boolean> => { try { return JSON.parse(localStorage.getItem(SEC_KEY) ?? '{}'); } catch { return {}; } };
+const HELP_SEL = '.hint, .proto-hint:not(.warn), .field-hint';
+
+/** Gruppe mit Überschrift: per Klick auf- und zuklappbar (wird gemerkt), „?“ blendet die Erklärungen ein */
+export function Section({ title, actions, children, empty, summary, defaultOpen = true, fixed }: {
+  title: string; actions?: ReactNode; children?: ReactNode; empty?: boolean;
+  /** kurze Zusammenfassung, wenn zugeklappt */ summary?: ReactNode;
+  defaultOpen?: boolean; /** nicht zuklappbar */ fixed?: boolean;
+}) {
+  const [open, setOpenState] = useState(() => fixed ? true : readSec()[title] ?? defaultOpen);
+  const [help, setHelp] = useState(false);
+  const [hasHelp, setHasHelp] = useState(false);
+  const ref = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const h = !!ref.current?.querySelector(HELP_SEL);
+    if (h !== hasHelp) setHasHelp(h);
+  });
+  const setOpen = (v: boolean) => {
+    setOpenState(v);
+    try { const m = readSec(); m[title] = v; localStorage.setItem(SEC_KEY, JSON.stringify(m)); } catch { /* kein Speicher */ }
+  };
+  const isOpen = fixed || open;
   return (
-    <section className={`section${empty ? ' empty' : ''}`}>
-      <div className="section-head"><span>{title}</span><div className="section-actions">{actions}</div></div>
-      {children}
+    <section ref={ref} className={`section${empty ? ' empty' : ''}${isOpen ? '' : ' closed'}${help ? ' show-help' : ''}`}>
+      <div className="section-head">
+        {fixed ? <span>{title}</span> : (
+          <button type="button" className="section-toggle" aria-expanded={isOpen} onClick={() => setOpen(!isOpen)}
+            title={isOpen ? 'Zuklappen' : 'Aufklappen'}>
+            <svg className="sec-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 3.8 5 6.3l2.5-2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <span className="sec-title">{title}</span>
+            {!isOpen && summary != null && <span className="sec-sum">{summary}</span>}
+          </button>
+        )}
+        <div className="section-actions">
+          {isOpen && hasHelp && (
+            <button type="button" className={`help-btn${help ? ' on' : ''}`} aria-pressed={help}
+              title={help ? 'Erklärungen ausblenden' : 'Erklärungen einblenden'} aria-label={help ? 'Erklärungen ausblenden' : 'Erklärungen einblenden'}
+              onClick={() => setHelp(!help)}>?</button>
+          )}
+          {isOpen && actions}
+        </div>
+      </div>
+      {isOpen && children}
     </section>
   );
 }

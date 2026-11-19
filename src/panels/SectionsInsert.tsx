@@ -43,7 +43,7 @@ export function SectionsInsertSection() {
       ))}
       <p className="proto-hint">
         Klick fügt den Abschnitt am Ende der Seite ein (vor der Fußzeile). Ist ein Abschnitt ausgewählt, kommt der neue direkt darunter. Alle Abschnitte passen sich an Tablet und Handy an.
-        {!hasPalette && ' Tipp: Lege vorher links unter „Farben“ ein Farbschema an – dann übernehmen die Abschnitte deine Farben.'}
+        {!hasPalette && ' Tipp: Lege vorher links in der „Bibliothek“ unter „Farben“ ein Farbschema an – dann übernehmen die Abschnitte deine Farben.'}
       </p>
     </Section>
   );

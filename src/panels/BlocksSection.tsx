@@ -158,7 +158,7 @@ export function CompareSection({ node }: { node: WNode }) {
           onChange={e => setNode(node.id, n => { n.compare = { pos: +e.target.value }; }, 'cmp-pos')} />
         <span style={{ width: 36, textAlign: 'right' }}>{node.compare!.pos} %</span>
       </div>
-      <p className="proto-hint">Darin liegen zwei Bilder übereinander: „Vorher“ (unten) und „Nachher“ (oben). Wähle eines aus und tausche im Reiter „Dokument“ das Bild. Besucher ziehen den Regler mit Maus oder Finger.</p>
+      <p className="proto-hint">Darin liegen zwei Bilder übereinander: „Vorher“ (unten) und „Nachher“ (oben). Wähle eines aus und tausche im Reiter „Gestalten“ das Bild. Besucher ziehen den Regler mit Maus oder Finger.</p>
     </Section>
   );
 }
@@ -202,7 +202,7 @@ function OwnAnimInsert({ hasRoot }: { hasRoot: boolean }) {
       <div className="row">
         <button type="button" className="btn grow" onClick={newAnimation} title="Öffnet den Animations-Editor mit Zeitleiste">＋ Neue Animation zeichnen</button>
       </div>
-      <p className="proto-hint">Animierte Icons, Grafiken oder Diagramme selbst zeichnen und mit Zuständen oder einer Zeitleiste bewegen. Fertige Animationen findest du links unter „Assets → Komponenten (Animationen)“ – von dort auf die Fläche ziehen.</p>
+      <p className="proto-hint">Animierte Icons, Grafiken oder Diagramme selbst zeichnen und mit Zuständen oder einer Zeitleiste bewegen. Fertige Animationen findest du links in der „Bibliothek“ unter „Komponenten (Animationen)“ – von dort auf die Fläche ziehen.</p>
     </>
   );
 }

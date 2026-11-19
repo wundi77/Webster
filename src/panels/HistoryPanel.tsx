@@ -14,8 +14,7 @@ export function HistoryPanel() {
   useEffect(() => { curRef.current?.scrollIntoView({ block: 'nearest' }); }, [cur]);
   return (
     <section className="section history">
-      <div className="section-head"><span>Protokoll</span></div>
-      <p className="hint">Klick auf einen Schritt springt dorthin zurück. Rückgängig: {MOD}Z · Wiederholen: {SHIFT}{MOD}Z. Das Protokoll gilt nur bis zum Schließen.</p>
+      <p className="hint">Rückgängig: {MOD}Z · Wiederholen: {SHIFT}{MOD}Z. Der Verlauf gilt nur, bis du Webster schließt.</p>
       <ol className="history-list">
         {all.map((d, i) => {
           const label = i === 0 ? 'Geöffnet' : describeChange(all[i - 1], d);

@@ -43,7 +43,7 @@ export function NavSection({ node }: { node: WNode }) {
           <option value="never">Nie – Links immer zeigen</option>
         </select>
       </div>
-      {!own && <p className="proto-hint">Oben fixieren und eine kleinere Version nach dem Scrollen: im Reiter „Elemente“ unter „Beim Scrollen“.</p>}
+      {!own && <p className="proto-hint">Oben fixieren und eine kleinere Version nach dem Scrollen: im Reiter „Interaktion“ unter „Beim Scrollen“.</p>}
       {own && !links && <p className="proto-hint">Noch kein Menü-Bereich gewählt – oben bei der Kopfzeile unter „Menü-Bereich“.</p>}
       {nav.collapse !== 'never' && (
         <>

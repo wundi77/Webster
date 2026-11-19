@@ -1211,3 +1211,43 @@ body:has(.sidebar-resizer.active) { cursor: col-resize; user-select: none; }
 .kb-dialog .dialog-body { max-height: min(70vh, 640px); overflow-y: auto; padding: 12px 20px 20px; }
 .kb-dialog .kb-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; }
 @media (max-width: 640px) { .kb-dialog .kb-list { grid-template-columns: 1fr; } }
+
+/* ---------- Linke Symbolleiste (Bereiche) ---------- */
+.rail {
+  width: 60px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0;
+  background: var(--bg-1); border-right: 1px solid var(--border);
+}
+.rail-btn {
+  width: 50px; padding: 7px 0 5px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  border: 0; border-radius: 9px; background: transparent; color: var(--text-2); cursor: pointer;
+}
+.rail-btn:hover { background: var(--bg-2); color: var(--text); }
+.rail-btn.on { background: var(--soft); color: var(--soft-text); }
+.rail-label { font-size: 10px; line-height: 1.1; text-align: center; }
+.area-head { flex: none; display: flex; flex-direction: column; gap: 3px; padding: 14px 14px 10px; border-bottom: 1px solid var(--border); }
+.area-head h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.area-head span { color: var(--text-3); font-size: 11.5px; line-height: 1.35; }
+.insert-quick { display: flex; gap: 6px; }
+.insert-quick .btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.insert-panel .section:first-child .hint { margin-top: 8px; }
+
+/* ---------- Aufklappbare Gruppen ---------- */
+.section-toggle {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 24px; padding: 0; margin-left: -2px;
+  border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer;
+}
+.section-toggle:hover .sec-chev { color: var(--text); }
+.sec-chev { flex: none; color: var(--text-3); transition: transform .15s; }
+.section.closed .sec-chev { transform: rotate(-90deg); }
+.sec-title { flex: none; }
+.sec-sum { flex: 1; min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; color: var(--text-3); font-weight: 400; font-size: 11.5px; }
+.section.closed { padding-bottom: 10px; }
+.help-btn {
+  width: 20px; height: 20px; margin: 2px; padding: 0; flex: none; display: grid; place-items: center;
+  border: 1px solid var(--border-2); border-radius: 50%; background: transparent; color: var(--text-3);
+  font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.help-btn:hover { color: var(--text); border-color: var(--text-3); }
+.help-btn.on { background: var(--soft); color: var(--soft-text); border-color: transparent; }
+/* Rechts: Erklärungen erst nach Klick auf „?“ */
+.sidebar.right .section:not(.show-help) :is(.hint, .proto-hint:not(.warn), .field-hint) { display: none; }

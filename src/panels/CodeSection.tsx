@@ -81,7 +81,7 @@ export function CustomCssField({ nodes }: { nodes: WNode[] }) {
         onCommit={v => updateNodes(nodes.map(n => n.id), n => { n.customCss = v.trim() ? v : undefined; }, 'custom-css')} />
       <p className="hint">
         Eine Angabe pro Zeile, z. B. <code>filter: grayscale(1);</code>. Sie gilt im Editor, in der Vorschau und auf der Website
-        und hat Vorrang vor den Reglern. Animationen (<code>@keyframes</code>) legst du im Reiter „Dokument“ (ohne Auswahl) unter „Code der Website“ an.
+        und hat Vorrang vor den Reglern. Animationen (<code>@keyframes</code>) legst du im Reiter „Gestalten“ (ohne Auswahl) unter „Code der Website“ an.
       </p>
     </section>
   );

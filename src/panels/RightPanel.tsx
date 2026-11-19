@@ -1,15 +1,15 @@
 import { SpaceChips } from '../ui/SpaceChips';
-import { SectionsInsertSection } from './SectionsInsert';
+import { useLeftArea } from './LeftPanel';
 import { AccordionSection, PopupSection, TabsSection, TooltipField } from './InteractiveSection';
 import { SPACE_NAMES, SPACE_TOKENS, setSpaceStep, spaceOf } from '../model/spacing';
 import { isAnimInstance } from '../model/animCore';
 import { PageSeoFields, SiteFields, useDialog } from './SiteSettings';
-import { NavInsertSection, NavSection } from './NavSection';
+import { NavSection } from './NavSection';
 import { RegionSection } from './RegionSection';
 import { ArrangeSection } from './ArrangeSection';
-import { FormInsertSection, FormSection } from './FormSection';
-import { EmbedInsertSection, EmbedSection, VideoFileButton } from './EmbedSection';
-import { CodeBlockSection, CodeInsertSection, CustomCssField, SiteCodeSection } from './CodeSection';
+import { FormSection } from './FormSection';
+import { EmbedSection, VideoFileButton } from './EmbedSection';
+import { CodeBlockSection, CustomCssField, SiteCodeSection } from './CodeSection';
 import { VectorSection } from './VectorSection';
 import { isShape } from '../model/vectorCore';
 import { useState, type ReactNode } from 'react';
@@ -38,7 +38,7 @@ import { HOVER_NAMES, withState } from '../model/hover';
 import { openPreview } from '../preview/bridge';
 import { hasFxTransform } from '../export/html';
 import { MotionSection } from './MotionSection';
-import { BlocksInsertSection, CarouselSection, CompareSection, LottieSection, OwnAnimSection } from './BlocksSection';
+import { CarouselSection, CompareSection, LottieSection, OwnAnimSection } from './BlocksSection';
 import type { Link, RevealType } from '../model/types';
 import { TYPO_KEYS, type ColorAsset } from '../model/types';
 
@@ -76,7 +76,7 @@ const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 
 export function RightPanel() {
   const [tab, setTab] = useState<'design' | 'proto' | 'code'>('design');
-  const tabs: [typeof tab, string][] = [['design', 'Dokument'], ['proto', 'Elemente'], ['code', 'Code']];
+  const tabs: [typeof tab, string][] = [['design', 'Gestalten'], ['proto', 'Interaktion'], ['code', 'Code']];
   return (
     <>
       <div className="tabs" role="tablist">
@@ -290,7 +290,7 @@ function MeasuresSection({ nodes, parents, upd }: { nodes: WNode[]; parents: (WN
             value={commonVal(vals.map(v => v.y))} onChange={v => upd(n => { n.y = v; }, 'y')} />
         </div>
       )}
-      {pos === 'fixed' && <p className="hint">Bleibt beim Scrollen an dieser Stelle im Fenster. Feineinstellung im Reiter „Elemente“ unter „Beim Scrollen“.</p>}
+      {pos === 'fixed' && <p className="hint">Bleibt beim Scrollen an dieser Stelle im Fenster. Feineinstellung im Reiter „Interaktion“ unter „Beim Scrollen“.</p>}
       {pos === 'sticky' && <p className="hint">Läuft mit, bis es oben am Fensterrand ankommt, und bleibt dort kleben.</p>}
       {sizeRow('h')}
       {sizeRow('v')}
@@ -1263,7 +1263,7 @@ function CodeTab() {
   const nodes = useSelected();
   const parents = useParents(nodes);
   const [copied, setCopied] = useState(false);
-  if (!nodes.length) return <p className="empty-hint">Wähle eine Ebene aus, um ihr CSS zu sehen und eigenes CSS zu ergänzen. Code für die ganze Website findest du im Reiter „Dokument“ (ohne Auswahl) unter „Code der Website“.</p>;
+  if (!nodes.length) return <p className="empty-hint">Wähle eine Ebene aus, um ihr CSS zu sehen und eigenes CSS zu ergänzen. Code für die ganze Website findest du im Reiter „Gestalten“ (ohne Auswahl) unter „Code der Website“.</p>;
   const code = nodes.map((n, i) => `/* ${n.name} */\n${cssText('.' + slug(n.name), nodeCss(n, parents[i]?.layout ?? null))}`).join('\n\n');
   return (
     <>
@@ -1527,14 +1527,11 @@ function ProtoTab() {
   const nodes = useRawSelected();
   if (!nodes.length) {
     return (
-      <>
-        <SectionsInsertSection />
-        <NavInsertSection />
-        <FormInsertSection />
-        <EmbedInsertSection />
-        <BlocksInsertSection />
-        <CodeInsertSection />
-      </>
+      <div className="empty-hint">
+        <p style={{ margin: 0 }}>Wähle ein Element aus, um Links, Bewegung und Scroll-Effekte einzustellen.</p>
+        <p style={{ margin: '10px 0 0' }}>Fertige Abschnitte, Menüs, Formulare und Bausteine findest du links unter <b>Einfügen</b>.</p>
+        <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => useLeftArea.getState().setArea('insert')}>Einfügen öffnen</button>
+      </div>
     );
   }
   const ids = nodes.map(n => n.id);
@@ -1599,7 +1596,7 @@ function LinkSection({ nodes, ids }: { nodes: WNode[]; ids: string[] }) {
               {pops.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
-          {!pops.length && <p className="proto-hint">Füge zuerst unter „Elemente“ → „Bewegte Bausteine“ ein Pop-up ein.</p>}
+          {!pops.length && <p className="proto-hint">Füge zuerst links unter „Einfügen“ → „Bewegte Bausteine“ ein Pop-up ein.</p>}
         </>
       )}
       <TooltipField nodes={nodes} ids={ids} />
