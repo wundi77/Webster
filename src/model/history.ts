@@ -3,6 +3,8 @@ import type { Page, WDocument, WNode } from './types';
 import { PROP_NAMES } from './resolve';
 
 const cache = new WeakMap<WDocument, string>();
+/** Für Schritte, die das ganze Dokument ersetzen (z. B. Zwischenstand), einen eigenen Namen setzen */
+export const labelChange = (doc: WDocument, label: string) => { cache.set(doc, label); };
 
 const EXTRA: Record<string, string> = {
   text: 'Text', name: 'Name', link: 'Link', hover: 'Hover', hoverDuration: 'Hover-Dauer', pin: 'Fixieren', scrolled: 'Nach dem Scrollen', scrollAt: 'Umschalten ab', scrollDuration: 'Scroll-Übergang', contentWidth: 'Inhaltsbreite', fullscreen: 'Vollbild', role: 'Kopf-/Fußzeile', textTag: 'Art des Textes', contentAlign: 'Inhalt ausrichten', reveal: 'Erscheinen', motion: 'Bewegung', carousel: 'Karussell', compare: 'Vorher-Nachher', lottie: 'Animation', anim: 'Schlüsselbilder', animation: 'Animation', nav: 'Menü',

@@ -271,6 +271,20 @@ export interface WNode {
   formLabel?: boolean;
   /** Absende-Knopf eines Formulars */
   formSubmit?: boolean;
+  /** Übersetzung des Textes in die zweite Sprache (je Sprachkürzel, z. B. { en: "Welcome" }) */
+  tr?: Record<string, string>;
+  /** Übersetzung der Bildbeschreibung */
+  altTr?: Record<string, string>;
+  /** Sprachumschalter: zeigt die andere Sprache und führt zur selben Seite in dieser Sprache */
+  langSwitch?: boolean;
+  /** Nur in der Ansicht (nicht gespeichert): Text ist in der gerade bearbeiteten Sprache noch nicht übersetzt */
+  untranslated?: boolean;
+  /** Öffnungszeiten (Board mit einer Zeile je Wochentag) */
+  hours?: OpeningHours | null;
+  /** Text zeigt auf der Website „Jetzt geöffnet“ bzw. „Gerade geschlossen“ – Kennung des Öffnungszeiten-Boards */
+  openBadge?: string | null;
+  /** Knopf „Route planen“: Kennung der Karte, deren Adresse als Ziel dient */
+  route?: string | null;
   /** Eingebettetes Video oder Karte */
   embed?: Embed | null;
   /** Eigener Code (HTML, CSS, JavaScript) – läuft abgeschottet in einem eigenen Rahmen */
@@ -363,7 +377,12 @@ export interface VectorSpec {
   arrowEnd: boolean;
 }
 
-export type FormFieldKey = 'name' | 'email' | 'telefon' | 'betreff' | 'nachricht';
+export type FormFieldKey = 'name' | 'email' | 'telefon' | 'datum' | 'uhrzeit' | 'betreff' | 'nachricht';
+
+/** Öffnungszeiten eines Tages (Zeiten als „HH:MM“); from2/to2 = zweiter Zeitraum (z. B. nach der Mittagspause) */
+export interface DayHours { closed: boolean; from: string; to: string; from2?: string; to2?: string }
+/** Öffnungszeiten Montag … Sonntag */
+export interface OpeningHours { days: DayHours[] }
 export interface FormSettings {
   /** Empfänger-Adresse */
   to: string;
@@ -376,7 +395,9 @@ export interface PageSeo { title: string; description: string; ogImage: string |
 
 /** Angaben für die ganze Website */
 export interface SiteSettings {
-  name: string; lang: string; url: string; favicon: string | null; selfHostFonts: boolean;
+  name: string; lang: string;
+  /** Zweite Sprache der Website (z. B. „en“); fehlt = nur eine Sprache */
+  lang2?: string | null; url: string; favicon: string | null; selfHostFonts: boolean;
   /** Eigenes CSS für alle Seiten (z. B. @keyframes für Animationen) */
   css?: string;
   /** Eigener Code im <head> bzw. am Ende von <body> jeder Seite (nur Vorschau & Export) */
@@ -403,6 +424,8 @@ export interface Page {
   id: string;
   name: string;
   seo?: PageSeo;
+  /** Seitenname und Suchmaschinen-Angaben in der zweiten Sprache */
+  tr?: Record<string, { name?: string; title?: string; description?: string }>;
   background: string;
   rootIds: string[];
   nodes: Record<string, WNode>;
@@ -417,7 +440,7 @@ export type TextTag = 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'div';
 
 export interface TextStyleAsset { id: string; name: string; style: Pick<TextStyle, TypoKey>; /** Art des Textes für alle Texte mit diesem Stil */ tag?: TextTag }
 
-export interface ImageAsset { id: string; name: string; src: string; w: number; h: number }
+export interface ImageAsset { id: string; name: string; src: string; w: number; h: number; /** Bearbeitungsstand (neuer Dateiname im Projektordner nach jeder Bearbeitung) */ rev?: number }
 
 export interface VideoAsset { id: string; name: string; src: string; w: number; h: number; size: number; type: string }
 
@@ -434,6 +457,22 @@ export interface WDocument {
   componentPages?: Page[];
   /** Vorlagen-Seiten: Muster zum Anlegen neuer Seiten (ohne Verknüpfung, nicht Teil der Website) */
   templatePages?: Page[];
+  /** Kommentare aus einer „Zum Ansehen“-Datei (nicht Teil der Website) */
+  comments?: ReviewComment[];
+}
+
+/** Kommentar eines Kunden/Kollegen zu einer Stelle der Seite */
+export interface ReviewComment {
+  id: string; pageId: string;
+  /** Ebene, an die geklickt wurde (null = Seite allgemein) */
+  nodeId: string | null;
+  /** Klickposition in der Ebene (0–1 von links/oben) */
+  px: number; py: number;
+  /** Fensterbreite beim Ansehen (z. B. 390 = Handy) */
+  vw: number;
+  author: string; text: string; at: string;
+  lang?: string | null;
+  done?: boolean;
 }
 
 export interface Rect { x: number; y: number; w: number; h: number }

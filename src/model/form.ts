@@ -14,6 +14,8 @@ export const FIELDS: { key: FormFieldKey; label: string; placeholder: string; re
   { key: 'name', label: 'Name', placeholder: 'Vor- und Nachname', required: true, optional: false },
   { key: 'email', label: 'E-Mail', placeholder: 'name@beispiel.de', required: true, optional: false },
   { key: 'telefon', label: 'Telefon', placeholder: 'Optional', required: false, optional: true },
+  { key: 'datum', label: 'Wunschtermin', placeholder: 'TT.MM.JJJJ', required: false, optional: true },
+  { key: 'uhrzeit', label: 'Uhrzeit', placeholder: 'z. B. 10:00', required: false, optional: true },
   { key: 'betreff', label: 'Betreff', placeholder: 'Worum geht es?', required: false, optional: true },
   { key: 'nachricht', label: 'Nachricht', placeholder: 'Ihre Nachricht …', required: true, optional: false },
 ];
@@ -70,6 +72,26 @@ function buildGroup(pg: Page, form: WNode, key: FormFieldKey, font: string, inde
   addTo(pg, txt(font, f.placeholder, 16, 400, '#222222', { name: 'Platzhalter', opacity: 0.5 }), box);
 }
 
+/** Formular-Board mit Feldern, Knopf und Datenschutz-Hinweis bauen (noch ohne Eltern-Element) */
+export function buildFormBoard(pg: Page, font: string, keys: FormFieldKey[], subject: string, dsPageId: string | null, button = 'Nachricht senden'): WNode {
+  const form = createNode('board', {
+    name: FORM_NAME, w: 560, h: 600, sizingV: 'auto', fills: [], clip: false,
+    layout: { ...makeLayout('flex', 'column'), gap: 18, padding: [0, 0, 0, 0], align: 'stretch' },
+    form: { ...defaultForm(), subject },
+  });
+  pg.nodes[form.id] = form;
+  for (const f of FIELDS.filter(f => keys.includes(f.key))) buildGroup(pg, form, f.key, font);
+  const btn = addTo(pg, createNode('board', {
+    name: 'Senden-Knopf', formSubmit: true, sizingH: 'auto', sizingV: 'auto', fills: [makeFill('#111111')], radius: 8, clip: false,
+    layout: { ...makeLayout('flex', 'row'), padding: [13, 26, 13, 26], gap: 0, align: 'center', justify: 'center' },
+    alignSelf: 'start', hover: { opacity: 0.85 }, hoverDuration: 150,
+  }), form);
+  addTo(pg, txt(font, button, 16, 600, '#FFFFFF', { sizingH: 'auto' }), btn);
+  addTo(pg, txt(font, dsPageId ? 'Beim Senden öffnet sich Ihr E-Mail-Programm. Hinweise zum Datenschutz finden Sie in unserer Datenschutzerklärung.' : 'Beim Senden öffnet sich Ihr E-Mail-Programm.', 13, 400, '#666666',
+    { name: 'Datenschutz-Hinweis', link: dsPageId ? { type: 'page', pageId: dsPageId } : null }), form);
+  return form;
+}
+
 /** Kontaktformular auf der aktuellen Seite einfügen */
 export function insertForm(): string | null {
   const s = useEditor.getState();
@@ -82,22 +104,8 @@ export function insertForm(): string | null {
   let formId = '';
   s.mutate(pg => {
     const r = pg.nodes[root.id];
-    const form = createNode('board', {
-      name: FORM_NAME, w: 560, h: 600, sizingV: 'auto', fills: [], clip: false,
-      layout: { ...makeLayout('flex', 'column'), gap: 18, padding: [0, 0, 0, 0], align: 'stretch' },
-      form: defaultForm(),
-    });
-    pg.nodes[form.id] = form;
+    const form = buildFormBoard(pg, font, FIELDS.filter(f => !f.optional).map(f => f.key), defaultForm().subject, ds?.id ?? null);
     form.parentId = r.id;
-    for (const f of FIELDS.filter(f => !f.optional)) buildGroup(pg, form, f.key, font);
-    const btn = addTo(pg, createNode('board', {
-      name: 'Senden-Knopf', formSubmit: true, sizingH: 'auto', sizingV: 'auto', fills: [makeFill('#111111')], radius: 8, clip: false,
-      layout: { ...makeLayout('flex', 'row'), padding: [13, 26, 13, 26], gap: 0, align: 'center', justify: 'center' },
-      alignSelf: 'start', hover: { opacity: 0.85 }, hoverDuration: 150,
-    }), form);
-    addTo(pg, txt(font, 'Nachricht senden', 16, 600, '#FFFFFF', { sizingH: 'auto' }), btn);
-    addTo(pg, txt(font, ds ? 'Beim Senden öffnet sich Ihr E-Mail-Programm. Hinweise zum Datenschutz finden Sie in unserer Datenschutzerklärung.' : 'Beim Senden öffnet sich Ihr E-Mail-Programm.', 13, 400, '#666666',
-      { name: 'Datenschutz-Hinweis', link: ds ? { type: 'page', pageId: ds.id } : null }), form);
 
     if (r.layout) {
       appendChild(pg, r.id, form.id);

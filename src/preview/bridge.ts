@@ -38,6 +38,7 @@ export function listenForDocs(onDoc: (d: WDocument) => void): () => void {
   return () => ch.close();
 }
 
-export function openPreview(pageId: string) {
-  window.open(`${location.origin}${location.pathname}#preview=${pageId}`, 'webster-preview');
+/** lang: zweite Sprache, in der gerade bearbeitet wird */
+export function openPreview(pageId: string, lang?: string | null) {
+  window.open(`${location.origin}${location.pathname}#preview=${pageId}${lang ? `&lang=${lang}` : ''}`, 'webster-preview');
 }

@@ -48,3 +48,10 @@ export function viewportCenterWorld() {
   const s = S();
   return { x: (s.viewport.w / 2 - s.pan.x) / s.zoom, y: (s.viewport.h / 2 - s.pan.y) / s.zoom };
 }
+
+/** Punkt der Seite in die Mitte holen (für „Zur Stelle springen“); zu klein Gezoomtes etwas vergrößern */
+export function centerOn(x: number, y: number, minZoom = 0.5) {
+  const s = S();
+  const z = clampZoom(Math.max(s.zoom, minZoom));
+  s.setView(z, { x: s.viewport.w / 2 - x * z, y: s.viewport.h / 2 - y * z });
+}

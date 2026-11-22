@@ -12,6 +12,7 @@ import { clearGuides, useView } from '../model/guides';
 import { askConfirm } from '../ui/ConfirmDialog';
 import { useShortcutsDialog } from '../ui/Shortcuts';
 import { openNews } from '../ui/UpdateUI';
+import { LangSwitch } from './TranslateDialog';
 
 export function TopBar() {
   const name = useEditor(s => s.doc.name);
@@ -35,6 +36,7 @@ export function TopBar() {
       </div>
       <div className="tb-zone tb-center">
         <BreakpointSwitch />
+        <LangSwitch />
         <Menu label={`${Math.round(zoom * 100)} %`} title="Zoom" btnClass="zoom-btn">
           {close => (
             <>
@@ -57,7 +59,7 @@ export function TopBar() {
           onClick={() => s.setTheme(theme === 'dark' ? 'light' : 'dark')} />
         <ClaudeToggle />
         <button type="button" className="btn preview-btn" title="Live-Vorschau in neuem Tab öffnen – aktualisiert sich beim Bearbeiten (P)"
-          onClick={() => openPreview(useEditor.getState().pageId)}><Icons.play /> <span className="btn-label">Vorschau</span></button>
+          onClick={() => { const s = useEditor.getState(); openPreview(s.pageId, s.lang); }}><Icons.play /> <span className="btn-label">Vorschau</span></button>
         <button type="button" className="btn primary publish-btn" title="Website veröffentlichen – prüfen, herunterladen, Anleitung zum Hochladen"
           onClick={() => useDialog.getState().show('publish')}><Icons.globe /> <span className="btn-label">Veröffentlichen</span></button>
       </div>

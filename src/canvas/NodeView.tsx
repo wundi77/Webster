@@ -1,3 +1,4 @@
+import { mainLang, translatePage } from '../model/i18n';
 import { memo, useEffect, useRef, type CSSProperties } from 'react';
 import { CODE_SANDBOX, codeSrcdoc } from '../model/code';
 import { takeEditCaret } from './textCaret';
@@ -19,7 +20,8 @@ import type { Layout, WNode } from '../model/types';
 export const NodeView = memo(function NodeView({ id, parentLayout }: { id: string; parentLayout: Layout | null }) {
   const node = useEditor(s => {
     const page = pageOf(s);
-    const n = page.nodes[id];
+    // In der zweiten Sprache: übersetzter Text (fehlende Übersetzungen gestrichelt markiert)
+    const n = (s.lang ? translatePage(page, s.lang, mainLang(s.doc), true) : page).nodes[id];
     if (!n) return undefined;
     let r = resolveNode(n, s.breakpoint);
     // Eigene Animation: im Animations-Editor der Stand beim Abspielkopf, sonst der Endzustand
@@ -175,7 +177,8 @@ function TextNode({ node, style, editing, cls }: { node: WNode; style: CSSProper
       const el = ref.current;
       const text = el ? el.innerText.replace(/\n$/, '') : node.text ?? '';
       useEditor.getState().setEditing(null);
-      if (!text.trim()) deleteNodes([node.id]);
+      // In der zweiten Sprache: leer = Übersetzung entfernen (der Text selbst bleibt)
+      if (!text.trim() && !useEditor.getState().lang) deleteNodes([node.id]);
       else setText(node.id, text);
     };
     return (
@@ -187,5 +190,6 @@ function TextNode({ node, style, editing, cls }: { node: WNode; style: CSSProper
         onKeyDown={e => { e.stopPropagation(); if (e.key === 'Escape') e.currentTarget.blur(); }} />
     );
   }
-  return <div ref={ref} className={cls} data-node-id={node.id} style={style}>{node.text || ' '}</div>;
+  return <div ref={ref} className={node.untranslated ? `${cls} untranslated` : cls} data-node-id={node.id} style={style}
+    title={node.untranslated ? 'Noch nicht übersetzt – Doppelklick zum Übersetzen' : undefined}>{node.text || ' '}</div>;
 }

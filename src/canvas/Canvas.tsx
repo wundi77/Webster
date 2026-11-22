@@ -5,6 +5,7 @@ import { isPageBoard } from '../model/pageRules';
 import { useEditor, viewPage, pageOf } from '../store';
 import { create } from 'zustand';
 import type { NodeType, Page, Pt, Rect, WNode } from '../model/types';
+import { CommentPins } from '../panels/CommentsPanel';
 import { absPos, absRect, bbox, boardAt, inLayout, intersects, normRect, round } from '../model/geometry';
 import {
   containerOf, createShape, duplicateNodes, insertIntoLayout, layoutAnchor, openImagePicker, placeImageFile, reparent, topLevel,
@@ -725,6 +726,7 @@ function Overlay({ page, zoom, pan, draft, draftLine, marquee, guides, ghost, dr
 
   return (
     <div className="overlay">
+      <CommentPins pageId={page.id} rectOf={id => (page.nodes[id] && page.nodes[id].visible !== false ? absRect(page, id) : null)} sr={sr} />
       {page.rootIds.map(id => {
         const n = page.nodes[id];
         if (!n || n.type !== 'board' || !n.visible) return null;
@@ -760,7 +762,7 @@ function Overlay({ page, zoom, pan, draft, draftLine, marquee, guides, ghost, dr
             })}
             <span className="board-bar-sep" />
             <button type="button" className="board-bar-btn" title="Vorschau dieser Seite öffnen" aria-label="Vorschau"
-              onClick={() => openPreview(page.id)}><Icons.play /></button>
+              onClick={() => openPreview(page.id, useEditor.getState().lang)}><Icons.play /></button>
           </div>
         );
         return bar ? [title, bar] : title;

@@ -6,6 +6,8 @@ import { slug } from '../model/css';
 import { fontHrefFor, type FontUse } from '../model/fonts';
 import { defaultSeo, defaultSite } from '../model/factory';
 import { LOTTIE_PLAYER } from './lottiePlayer';
+import { HOURS_JS } from '../model/hoursCore';
+import { langFile, mainLang, secondLang, translatePage, uiTexts } from '../model/i18n';
 import { BASE_CSS, EMBED_CSS, EMBED_JS, MOTION_CSS, MOTION_JS, LOTTIE_JS, siteFxCss, FORM_CSS, FORM_JS, NAV_CSS, NAV_JS, REVEAL_JS, scrollJs, classNames, esc, groupFonts, pageFiles, renderPageParts, siteRoot } from './html';
 
 export interface ExportWarning { pageId: string | null; text: string }
@@ -164,23 +166,40 @@ export async function exportSite(doc: WDocument, opts: ExportOptions): Promise<E
   const faviconPath = favicon ? await addImage(favicon.id, favicon.src, 'favicon-' + favicon.name) : null;
   const absUrl = (p: string) => (site.url ? site.url.replace(/\/+$/, '') + '/' + p : p);
 
-  for (const page of doc.pages) {
-    const file = pages.get(page.id)!;
+  // Sprachen: Hauptsprache (index.html …) und ggf. zweite Sprache (en.html, kontakt-en.html …)
+  const l1 = mainLang(doc), l2 = secondLang(doc);
+  const langs = l2 ? [l1, l2] : [l1];
+  const fileIn = (pageId: string, lang: string) => { const f = pages.get(pageId) ?? 'index.html'; return lang === l1 ? f : langFile(f, lang); };
+
+  for (const lang of langs) {
+  const second = lang !== l1;
+  const other = langs.find(l => l !== lang);
+  for (const page0 of doc.pages) {
+    const page = second ? translatePage(page0, lang, l1) : page0;
+    const mainFile = pages.get(page.id)!;
+    const file = fileIn(page.id, lang);
     const seo = { ...defaultSeo(), ...page.seo };
-    const pageCls = `seite-${file.replace(/\.html$/, '')}`;
+    const pageCls = `seite-${mainFile.replace(/\.html$/, '')}`;
     const parts = renderPageParts({
-      doc, page, cls, imageSrc, pretty: true,
+      doc, page, cls, imageSrc, pretty: true, ui: uiTexts(lang),
       asset: (k, id) => (k === 'image' ? imgPath.get(id) : vidPath.get(id)) ?? '', scope: doc.pages.length > 1 ? `.${pageCls}` : undefined,
-      pageLink: id => ({ href: pages.get(id) ?? 'index.html' }),
+      pageLink: id => ({ href: fileIn(id, lang) }),
+      langLink: other ? { href: fileIn(page.id, other), label: other.toUpperCase(), lang: other } : undefined,
     });
     if (parts.empty) parts.body = '';
-    if (parts.empty) warnings.push({ pageId: page.id, text: 'Hat kein Board – die Seite bleibt leer.' });
-    if (!seo.title) warnings.push({ pageId: page.id, text: 'Kein Seitentitel – es wird der Seitenname verwendet.' });
-    if (!seo.description) warnings.push({ pageId: page.id, text: 'Keine Beschreibung für Suchmaschinen.' });
-    allFonts.push(...parts.fonts);
-    cssSections.push(`/* ===== Seite: ${page.name.replace(/\*\//g, '')} (${file}) ===== */\n\nbody.${pageCls} {\n  background: ${parts.background};\n}\n\n${parts.css}`);
+    if (!second) {
+      if (parts.empty) warnings.push({ pageId: page.id, text: 'Hat kein Board – die Seite bleibt leer.' });
+      if (!seo.title) warnings.push({ pageId: page.id, text: 'Kein Seitentitel – es wird der Seitenname verwendet.' });
+      if (!seo.description) warnings.push({ pageId: page.id, text: 'Keine Beschreibung für Suchmaschinen.' });
+      allFonts.push(...parts.fonts);
+      // Gestaltung ist in beiden Sprachen gleich – CSS nur einmal
+      cssSections.push(`/* ===== Seite: ${page.name.replace(/\*\//g, '')} (${file}) ===== */\n\nbody.${pageCls} {\n  background: ${parts.background};\n}\n\n${parts.css}`);
+    } else allFonts.push(...parts.fonts);
 
     const title = seo.title || `${page.name} – ${site.name || doc.name}`;
+    const alternates = langs.length > 1
+      ? langs.map(l => `<link rel="alternate" hreflang="${l}" href="${esc(site.url ? absUrl(fileIn(page.id, l) === 'index.html' ? '' : fileIn(page.id, l)) : fileIn(page.id, l))}">`)
+      : [];
     const head = [
       '<meta charset="utf-8">',
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -191,13 +210,14 @@ export async function exportSite(doc: WDocument, opts: ExportOptions): Promise<E
       seo.description ? `<meta property="og:description" content="${esc(seo.description)}">` : '',
       site.name ? `<meta property="og:site_name" content="${esc(site.name)}">` : '',
       site.url ? `<meta property="og:url" content="${esc(absUrl(file === 'index.html' ? '' : file))}">` : '',
+      ...alternates,
       faviconPath ? `<link rel="icon" href="${esc(faviconPath)}">` : '',
       '%%FONTS%%',
       '<link rel="stylesheet" href="css/style.css">',
       site.analytics?.domain ? `<script defer data-domain="${esc(site.analytics.domain)}" src="${esc((site.analytics.host?.replace(/\/+$/, '') || 'https://plausible.io') + '/js/script.js')}"></script>` : '',
       site.headCode?.trim() ? site.headCode.trim() : '',
     ].filter(Boolean).map(l => '  ' + l).join('\n');
-    const scripts = [/data-reveal=/.test(parts.body) ? REVEAL_JS : '', parts.scroll ? scrollJs(parts.scroll) : '', parts.nav ? NAV_JS : '', parts.form ? FORM_JS : '', parts.embed ? EMBED_JS : '', parts.motion ? MOTION_JS : ''].filter(Boolean);
+    const scripts = [/data-reveal=/.test(parts.body) ? REVEAL_JS : '', parts.scroll ? scrollJs(parts.scroll) : '', parts.nav ? NAV_JS : '', parts.form ? FORM_JS : '', parts.hours ? HOURS_JS : '', parts.embed ? EMBED_JS : '', parts.motion ? MOTION_JS : ''].filter(Boolean);
     if (parts.embed) anyEmbed = true;
     if (parts.motion) anyMotion = true;
     if (parts.nav) anyNav = true;
@@ -210,8 +230,9 @@ export async function exportSite(doc: WDocument, opts: ExportOptions): Promise<E
     }
     bodies.push({
       pageId: page.id, file,
-      html: `<!doctype html>\n<html lang="${esc(site.lang || 'de')}">\n<head>\n${head}\n</head>\n<body class="${pageCls}">\n${parts.body}${reveal}${site.bodyCode?.trim() ? '\n' + site.bodyCode.trim() : ''}\n</body>\n</html>\n`,
+      html: `<!doctype html>\n<html lang="${esc(lang)}">\n<head>\n${head}\n</head>\n<body class="${pageCls}">\n${parts.body}${reveal}${site.bodyCode?.trim() ? '\n' + site.bodyCode.trim() : ''}\n</body>\n</html>\n`,
     });
+  }
   }
 
   // Schriften

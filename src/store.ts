@@ -9,6 +9,7 @@ import { afterMutate } from './model/components';
 import { allPages, enforcePageRules } from './model/pageRules';
 import { startPreviewBridge } from './preview/bridge';
 import { animPageAt, isAnimPage, recordAnim, useAnimClock } from './model/animCore';
+import { mainLang, secondLang, translatePage } from './model/i18n';
 
 export type Tool = 'move' | 'board' | 'rect' | 'ellipse' | 'text' | 'image' | 'hand' | 'line' | 'arrow' | 'triangle' | 'polygon' | 'star';
 export type Theme = 'dark' | 'light';
@@ -39,6 +40,9 @@ export interface EditorState {
   theme: Theme;
   saveError: boolean;
   breakpoint: Breakpoint;
+  /** Sprache, in der gerade Texte bearbeitet werden (null = Hauptsprache) */
+  lang: string | null;
+  setLang: (l: string | null) => void;
   /** Normal oder Hover – bestimmt, wohin Änderungen geschrieben werden */
   interaction: InteractionState;
   setInteraction: (s: InteractionState) => void;
@@ -55,6 +59,8 @@ export interface EditorState {
   setTheme: (t: Theme) => void;
   setPage: (id: string) => void;
   loadDocument: (doc: WDocument) => void;
+  /** Ganzes Dokument ersetzen (z. B. Zwischenstand wiederherstellen) – lässt sich rückgängig machen */
+  replaceDocument: (doc: WDocument) => void;
   mutate: (recipe: (page: Page, doc: WDocument) => void, opts?: MutateOpts) => void;
   beginGesture: () => void;
   endGesture: () => void;
@@ -105,6 +111,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
   theme: loadTheme(),
   saveError: false,
   breakpoint: 'desktop',
+  lang: null,
+  setLang: l => set({ lang: l && secondLang(get().doc) === l ? l : null, editingTextId: null, hoverId: null }),
   animT: 0,
   interaction: 'normal',
   setInteraction: interaction => set({ interaction }),
@@ -129,6 +137,14 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const doc = produce(raw, d => { migrateDocument(d as WDocument); });
     lastKey = null;
     set({ doc, pageId: doc.pages[0].id, selection: [], past: [], future: [], hoverId: null, editingTextId: null });
+  },
+
+  replaceDocument: raw => {
+    const s = get();
+    const doc = produce(raw, d => { migrateDocument(d as WDocument); });
+    lastKey = null;
+    const pageId = validPage(doc, s.pageId);
+    set({ doc, past: [...s.past.slice(-(HISTORY_LIMIT - 1)), s.doc], future: [], pageId, selection: [], hoverId: null, editingTextId: null });
   },
 
   mutate: (recipe, opts = {}) => {
@@ -198,8 +214,9 @@ export const pageOf = (s: EditorState): Page => allPages(s.doc).find(p => p.id =
 
 /** Seite, wie sie im aktuellen Breakpoint aussieht (nur lesen!) */
 export const viewPage = (s: EditorState): Page => {
-  const p = resolvePage(pageOf(s), s.breakpoint);
-  return isAnimPage(s.doc, s.pageId) ? animPageAt(p, s.animT) : p;
+  const r = resolvePage(pageOf(s), s.breakpoint);
+  const p = isAnimPage(s.doc, s.pageId) ? animPageAt(r, s.animT) : r;
+  return s.lang ? translatePage(p, s.lang, mainLang(s.doc), true) : p;
 };
 
 // Stille Notfallkopie im Browser (IndexedDB) – ersetzt NICHT das Speichern im Projektordner
@@ -228,6 +245,9 @@ if (import.meta.env.DEV) {
   // Tests: dieselben Modul-Instanzen wie die App
   (window as unknown as Record<string, unknown>).__websterAnim = { clock: useAnimClock, load: () => Promise.all([import('./model/anim'), import('./model/animCore'), import('./model/library'), import('./export/html')]) };
 }
+
+// Zweite Sprache entfernt oder geändert → zurück zur Hauptsprache
+useEditor.subscribe(s => { if (s.lang && secondLang(s.doc) !== s.lang) useEditor.setState({ lang: null }); });
 
 // Grundschrift für neue Texte aktuell halten
 useEditor.subscribe(s => setBaseFontSize(s.doc.site?.baseFont));

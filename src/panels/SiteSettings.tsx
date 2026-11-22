@@ -7,6 +7,9 @@ import { defaultSeo, defaultSite } from '../model/factory';
 import { addImageFiles } from '../model/library';
 import { pageFiles } from '../export/html';
 import { normalizeUrl } from '../export/site';
+import { missingTranslations } from '../model/i18n';
+import { hasLangSwitch, insertLangSwitch, setSecondLang } from '../model/language';
+import { openTranslate } from './TranslateDialog';
 
 /** Welcher Dialog ist offen? */
 export type DialogId = 'export' | 'publish' | 'icons';
@@ -122,6 +125,34 @@ function AnalyticsFields() {
   );
 }
 
+/** Zweite Sprache: auswählen, Sprachumschalter einsetzen, Übersetzen-Fenster */
+function SecondLangFields({ lang, lang2 }: { lang: string; lang2: string | null }) {
+  const has = useEditor(s => hasLangSwitch(s.doc));
+  const missing = useEditor(s => (lang2 ? missingTranslations(s.doc, lang2) : 0));
+  return (
+    <div className="field">
+      <div className="field-label">Zweite Sprache</div>
+      <select className="select" value={lang2 && lang2 !== lang ? lang2 : ''} onChange={e => setSecondLang(e.target.value || null)}>
+        <option value="">Keine – nur eine Sprache</option>
+        {LANGS.filter(([k]) => k !== lang).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+      </select>
+      {lang2 && lang2 !== lang && (
+        <>
+          <div className="row" style={{ marginTop: 6 }}>
+            <button type="button" className="btn grow" onClick={openTranslate}>Übersetzen …{missing ? ` (${missing} offen)` : ''}</button>
+          </div>
+          {!has && <div className="row"><button type="button" className="btn grow" onClick={() => insertLangSwitch()}>Sprachumschalter einsetzen</button></div>}
+          <div className="field-hint">
+            Oben in der Leiste schaltest du zwischen {lang.toUpperCase()} und {lang2.toUpperCase()} um und übersetzt Texte direkt auf der Seite.
+            Noch nicht übersetzte Texte sind gestrichelt umrandet. Beim Export entsteht jede Seite zweimal (z. B. index.html und {lang2}.html).
+            {!has && ' Mit dem Sprachumschalter wechseln Besucher zwischen den Sprachen.'}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function SiteFields() {
   const raw = useEditor(s => s.doc.site);
   const site = { ...defaultSite(), ...raw };
@@ -139,6 +170,7 @@ export function SiteFields() {
           {!LANGS.some(([k]) => k === site.lang) && <option value={site.lang}>{site.lang}</option>}
         </select>
       </div>
+      <SecondLangFields lang={site.lang} lang2={site.lang2 ?? null} />
       <div className="field">
         <div className="field-label">Adresse (optional)</div>
         <input className="textinput" value={site.url} placeholder="https://www.meine-seite.de" spellCheck={false}

@@ -1,4 +1,5 @@
 // Alle Bearbeitungsbefehle (Erstellen, Löschen, Duplizieren, Anordnen, Layout …)
+import { mainLang, translatePage } from './i18n';
 import { useEditor, pageOf, viewPage } from '../store';
 import type { NodeType, Page, Pt, Rect, WDocument, WNode } from './types';
 import { createDocument, createNode, createPage, findOrAddImage, makeLayout, uid } from './factory';
@@ -12,6 +13,7 @@ import { applyHoverEdit, applyScrollEdit } from './hover';
 import { isFooter, slug } from './css';
 import { askConfirm } from '../ui/ConfirmDialog';
 import { allPages, isPageBoard, pageBoard as pageBoardOf } from './pageRules';
+import { shrinkImage } from './imageEdit';
 
 const S = () => useEditor.getState();
 /** Seite im aktuellen Breakpoint – nur zum Lesen */
@@ -187,7 +189,25 @@ export function resetOverrides(ids: string[]) {
 }
 
 export function setText(id: string, text: string) {
-  S().mutate(pg => { const n = pg.nodes[id]; if (n) n.text = text; }, { key: 'text-' + id });
+  const lang = S().lang;
+  if (lang) {
+    // Nur angeklickt, nichts geändert: keine „Übersetzung“ speichern, die dem angezeigten Text gleicht
+    const pg = currentPage();
+    const n = pg.nodes[id];
+    if (n && n.tr?.[lang] === undefined && text === translatePage(pg, lang, mainLang(S().doc)).nodes[id]?.text) return;
+  }
+  S().mutate(pg => {
+    const n = pg.nodes[id];
+    if (!n) return;
+    // In der zweiten Sprache: Übersetzung speichern, der Text der Hauptsprache bleibt
+    if (lang) {
+      if (n.langSwitch) return;
+      const tr = { ...n.tr };
+      if (text.trim()) tr[lang] = text; else delete tr[lang];
+      n.tr = Object.keys(tr).length ? tr : undefined;
+    }
+    else n.text = text;
+  }, { key: 'text-' + id });
 }
 
 export function nudge(dx: number, dy: number) {
@@ -668,7 +688,8 @@ export function readImage(file: File): Promise<{ src: string; w: number; h: numb
     reader.onload = () => {
       const src = String(reader.result);
       const img = new Image();
-      img.onload = () => resolve({ src, w: img.naturalWidth || 100, h: img.naturalHeight || 100 });
+      // zu große Bilder gleich verkleinern (schnellere Website, kleinerer Projektordner)
+      img.onload = () => { void shrinkImage(src, img.naturalWidth || 100, img.naturalHeight || 100).then(resolve); };
       img.onerror = () => reject(new Error('Bild konnte nicht gelesen werden'));
       img.src = src;
     };

@@ -7,6 +7,8 @@ import { textTagOf } from '../model/headings';
 import { fontHrefFor, type FontUse } from '../model/fonts';
 import { BREAKPOINTS } from '../model/factory';
 import { EMBED_INFO, embedOpenUrl, embedSrc } from '../model/embedCore';
+import { HOURS_JS } from '../model/hoursCore';
+import { fill, mainLang, secondLang, translatePage, uiTexts, type UiTexts } from '../model/i18n';
 import { VECTOR_PAINT_CSS, vectorSvg } from '../model/vectorCore';
 import { LOTTIE_PLAYER } from './lottiePlayer';
 import { animDesignSize, isAnimated, isAnimInstance, morphPath, sampleTimes, subtreeDuration, valueAt, withAnim } from '../model/animCore';
@@ -26,6 +28,10 @@ export interface PageCtx {
   externalNewTab?: boolean;
   /** Lesbar formatiertes CSS */
   pretty?: boolean;
+  /** Texte, die Webster selbst auf die Seite schreibt (Sprache der Seite) */
+  ui?: UiTexts;
+  /** Sprachumschalter: Ziel (dieselbe Seite in der anderen Sprache) */
+  langLink?: { href: string; attrs?: string; label: string; lang: string };
   /** Selektor, mit dem alle Regeln dieser Seite beginnen (z. B. ".seite-kontakt") */
   scope?: string;
   /** Adresse eines Bildes oder Videos aus der Bibliothek */
@@ -244,12 +250,14 @@ export const FORM_CSS = `:where(form[data-to] input, form[data-to] textarea, for
 :where(form[data-to]) :is(input, textarea):focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 form[data-to] .wform-status { margin: 0; font-size: 14px; line-height: 1.4; }`;
 
-export const FORM_JS = `(function(){document.querySelectorAll('form[data-to]').forEach(function(f){f.addEventListener('submit',function(e){e.preventDefault();var to=decodeURIComponent(escape(atob(f.getAttribute('data-to')))).split('').reverse().join('');var g=function(n){var el=f.querySelector('[name="'+n+'"]');return el?el.value.trim():''};var lab=function(n){var el=f.querySelector('[name="'+n+'"]');return el?el.getAttribute('data-label'):n};var subj=g('betreff')||f.getAttribute('data-subject')||'Kontaktanfrage';var lines=[];['name','email','telefon'].forEach(function(k){var v=g(k);if(v)lines.push(lab(k)+': '+v)});var body=lines.join('\\n')+(lines.length?'\\n\\n':'')+g('nachricht');window.location.href='mailto:'+to+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);var st=f.querySelector('.wform-status');if(!st){st=document.createElement('p');st.className='wform-status';st.setAttribute('role','status');f.appendChild(st)}st.textContent='Ihr E-Mail-Programm wurde geöffnet – bitte senden Sie die Nachricht dort ab.'})})})();`;
+export const FORM_JS = `(function(){document.querySelectorAll('form[data-to]').forEach(function(f){f.addEventListener('submit',function(e){e.preventDefault();var to=decodeURIComponent(escape(atob(f.getAttribute('data-to')))).split('').reverse().join('');var g=function(n){var el=f.querySelector('[name="'+n+'"]');return el?el.value.trim():''};var lab=function(n){var el=f.querySelector('[name="'+n+'"]');return el?el.getAttribute('data-label'):n};var subj=g('betreff')||f.getAttribute('data-subject')||'Kontaktanfrage';var lines=[];['name','email','telefon','datum','uhrzeit'].forEach(function(k){var v=g(k);if(k==='datum'&&/^\\d{4}-\\d\\d-\\d\\d$/.test(v))v=v.split('-').reverse().join('.');if(v)lines.push(lab(k)+': '+v)});var body=lines.join('\\n')+(lines.length?'\\n\\n':'')+g('nachricht');window.location.href='mailto:'+to+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);var st=f.querySelector('.wform-status');if(!st){st=document.createElement('p');st.className='wform-status';st.setAttribute('role','status');f.appendChild(st)}st.textContent=f.getAttribute('data-sent')||'Ihr E-Mail-Programm wurde geöffnet – bitte senden Sie die Nachricht dort ab.'})})})();`;
 
 const FIELD_META: Record<string, { type: string; auto: string; label: string; required: boolean }> = {
   name: { type: 'text', auto: 'name', label: 'Name', required: true },
   email: { type: 'email', auto: 'email', label: 'E-Mail', required: true },
   telefon: { type: 'tel', auto: 'tel', label: 'Telefon', required: false },
+  datum: { type: 'date', auto: 'off', label: 'Wunschtermin', required: false },
+  uhrzeit: { type: 'time', auto: 'off', label: 'Uhrzeit', required: false },
   betreff: { type: 'text', auto: 'off', label: 'Betreff', required: false },
   nachricht: { type: 'textarea', auto: 'off', label: 'Nachricht', required: true },
 };
@@ -273,7 +281,7 @@ const PIN_SVG = '<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="tr
 /** Empfänger-Adresse so verpacken, dass Adress-Sammler sie nicht im Quelltext finden */
 export const encodeMail = (to: string) => btoa(unescape(encodeURIComponent(to.trim().split('').reverse().join(''))));
 
-export interface PageParts { body: string; css: string; fonts: FontUse[]; background: string; empty: boolean; nav?: boolean; form?: boolean; embed?: boolean; motion?: boolean; lottie?: boolean;
+export interface PageParts { body: string; css: string; fonts: FontUse[]; background: string; empty: boolean; nav?: boolean; form?: boolean; hours?: boolean; embed?: boolean; motion?: boolean; lottie?: boolean;
   /** Umschalten nach dem Scrollen: ab welcher Position, mit wie viel Puffer beim Zurückscrollen */
   scroll?: { at: number; hyst: number } }
 
@@ -305,6 +313,7 @@ function renderPagePartsInner(ctx: PageCtx): PageParts {
   const scrollAtOf = (n: WNode) => upward(n, x => x.scrollAt, 80);
   const navRules: string[] = [];
   let hasForm = false;
+  let hasHours = false;
   let hasEmbed = false;
   const navOwnerOf = (id: string): WNode | undefined => {
     let n = page.nodes[page.nodes[id]?.parentId ?? ''];
@@ -595,6 +604,12 @@ function renderPagePartsInner(ctx: PageCtx): PageParts {
     if (mo?.scroll?.kind === 'sideways') attrs.push('data-fx-side');
     if (mo?.mouse) attrs.push(`data-fx-mouse="${mo.mouse.kind}"`, `data-fx-mamt="${mo.mouse.amount}"`);
     if (mo?.loop) attrs.push(`data-fx-loop="${mo.loop.kind}"`);
+    // „Jetzt geöffnet?“: Zeiten des Öffnungszeiten-Boards mitgeben
+    const hb = n.openBadge ? page.nodes[n.openBadge] : undefined;
+    if (n.type === 'text' && hb?.hours) {
+      hasHours = true;
+      attrs.push(`data-open-hours="${esc(JSON.stringify(hb.hours))}"`, `data-open-t="${esc(JSON.stringify((ctx.ui ?? uiTexts('de')).hours))}"`);
+    }
     if (bgMove) attrs.push('data-bg-move');
     if (n.carousel) attrs.push(`data-carousel="${n.carousel.auto ?? 0}"`, 'role="region"', 'aria-roledescription="Karussell"', `aria-label="${esc(n.name)}"`, 'tabindex="0"');
     // Aufklappen, Reiter, Pop-up, Hinweis-Text
@@ -685,12 +700,14 @@ function renderPagePartsInner(ctx: PageCtx): PageParts {
       const dsPage = doc.pages.find(p => /datenschutz|privacy/i.test(p.name));
       const ds = dsPage ? ctx.pageLink(dsPage.id) : null;
       const open = embedOpenUrl(e);
-      const note = [`Beim Laden werden Daten an ${info.service} übertragen.`,
-        ds ? `<a href="${esc(ds.href)}"${ds.attrs ? ' ' + ds.attrs : ''}>Datenschutz</a>` : '',
-        open ? `<a href="${esc(open)}" target="_blank" rel="noopener">Auf ${info.service} öffnen</a>` : ''].filter(Boolean).join(' · ');
+      const ui = ctx.ui ?? uiTexts('de');
+      const service = info.service ?? '';
+      const note = [fill(ui.dataNote, { service }),
+        ds ? `<a href="${esc(ds.href)}"${ds.attrs ? ' ' + ds.attrs : ''}>${esc(ui.privacy)}</a>` : '',
+        open ? `<a href="${esc(open)}" target="_blank" rel="noopener">${esc(fill(ui.openOn, { service }))}</a>` : ''].filter(Boolean).join(' · ');
       const ind = pretty ? pad0 + '  ' : '';
       return `${pad0}<div class="${cls} wembed" data-embed="${e.kind}" data-src="${esc(src)}" data-title="${esc(n.name)}">`
-        + `${ind}<button type="button" class="wembed-consent"${poster ? ` style="background-image:url('${esc(poster)}')"` : ''}><span class="wembed-icon">${isMap ? PIN_SVG : PLAY_SVG}</span><span>${isMap ? 'Karte' : 'Video'} von ${info.service} laden</span></button>`
+        + `${ind}<button type="button" class="wembed-consent"${poster ? ` style="background-image:url('${esc(poster)}')"` : ''}><span class="wembed-icon">${isMap ? PIN_SVG : PLAY_SVG}</span><span>${esc(fill(ui.load, { what: isMap ? ui.map : ui.video, service }))}</span></button>`
         + `${ind}<p class="wembed-note">${note}</p>${pad0}</div>`;
     }
     // Kontaktformular
@@ -698,6 +715,7 @@ function renderPagePartsInner(ctx: PageCtx): PageParts {
       hasForm = true;
       tag = 'form';
       attrs.push(`data-to="${encodeMail(n.form.to || '')}"`, `data-subject="${esc(n.form.subject || '')}"`);
+      if (ctx.ui && ctx.ui !== uiTexts('de')) attrs.push(`data-sent="${esc(ctx.ui.formSent)}"`);
     }
     if (n.formField && n.type === 'board') {
       hasForm = true;
@@ -764,6 +782,12 @@ function renderPagePartsInner(ctx: PageCtx): PageParts {
         return `${pad}<img ${attrs.join(' ')} src="${src}" alt="${alt}" style="object-fit:${fit}" loading="lazy"${n.zoom ? ' data-zoom tabindex="0" role="button" aria-haspopup="dialog"' : ''}>`;
       }
       return `${pad}<a ${attrs.join(' ')}><img src="${src}" alt="${alt}" style="width:100%;height:100%;object-fit:${fit}" loading="lazy"></a>`;
+    }
+    if (n.type === 'text' && n.langSwitch) {
+      // Sprachumschalter: führt zur selben Seite in der anderen Sprache
+      const L2 = ctx.langLink;
+      if (!L2) return '';
+      return `${pad}<a ${attrs.join(' ')} href="${esc(L2.href)}" hreflang="${esc(L2.lang)}" lang="${esc(L2.lang)}"${L2.attrs ? ' ' + L2.attrs : ''}>${esc(L2.label)}</a>`;
     }
     if (n.type === 'text') {
       // Überschrift/Absatz: eigene HTML-Art; als Link steckt die Überschrift im Link
@@ -869,7 +893,7 @@ function renderPagePartsInner(ctx: PageCtx): PageParts {
     scrollRules.length ? `@media (prefers-reduced-motion: reduce) {${nl}  html.w-scrolled * { transition: none !important; }${nl}}` : '',
   ].filter(Boolean).join(pretty ? '\n\n' : '\n');
   const scroll = scrollRules.length ? { at: scrollAt, hyst: shrink + 20 } : undefined;
-  return { body, css, fonts, background: bg ? paintCss(bg) : '#fff', empty: false, nav: navRules.length > 0, form: hasForm, embed: hasEmbed, scroll, motion: hasMotion, lottie: hasLottie };
+  return { body, css, fonts, background: bg ? paintCss(bg) : '#fff', empty: false, nav: navRules.length > 0, form: hasForm, hours: hasHours, embed: hasEmbed, scroll, motion: hasMotion, lottie: hasLottie };
 }
 
 /** Schriften gruppiert nach Familie */
@@ -880,17 +904,22 @@ export function groupFonts(uses: FontUse[]): Map<string, FontUse[]> {
 }
 
 /** Vollständige HTML-Datei für die Live-Vorschau (alles eingebettet) */
-export function renderPreviewPage(doc: WDocument, pageId: string, pageLink: PageCtx['pageLink']): string {
-  const page = doc.pages.find(p => p.id === pageId) ?? doc.pages[0];
+export function renderPreviewPage(doc: WDocument, pageId: string, pageLink: PageCtx['pageLink'], lang?: string | null): string {
+  const l1 = mainLang(doc), l2 = secondLang(doc);
+  const inL2 = !!lang && lang === l2;
+  const page0 = doc.pages.find(p => p.id === pageId) ?? doc.pages[0];
+  const page = inL2 ? translatePage(page0, l2!, l1) : page0;
+  const other = l2 ? (inL2 ? l1 : l2) : null;
   const parts = renderPageParts({
-    doc, page, pageLink, externalNewTab: true,
+    doc, page, pageLink, externalNewTab: true, ui: uiTexts(inL2 ? l2! : l1),
+    langLink: other ? { href: '#', attrs: `data-lang="${other}"`, label: other.toUpperCase(), lang: other } : undefined,
     cls: id => 'n' + id,
     imageSrc: n => (n.imageRef ? doc.library.images.find(i => i.id === n.imageRef)?.src : n.src) ?? '',
   });
   const links = [...groupFonts(parts.fonts)].map(([f, u]) => fontHrefFor(f, u)).filter(Boolean)
     .map(h => `<link rel="stylesheet" href="${h}">`).join('\n');
   return `<!doctype html>
-<html lang="${esc(doc.site?.lang || 'de')}">
+<html lang="${esc(inL2 ? l2! : l1)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -911,7 +940,7 @@ ${doc.site?.headCode ?? ''}
 </head>
 <body>
 ${parts.body}
-<script>${REVEAL_JS}${parts.scroll ? scrollJs(parts.scroll) : ''}${parts.nav ? NAV_JS : ''}${parts.form ? FORM_JS : ''}${parts.embed ? EMBED_JS : ''}${parts.motion ? MOTION_JS : ''}</script>${parts.lottie ? `\n<script>${LOTTIE_PLAYER}</script>\n<script>${LOTTIE_JS}</script>` : ''}
+<script>${REVEAL_JS}${parts.scroll ? scrollJs(parts.scroll) : ''}${parts.nav ? NAV_JS : ''}${parts.form ? FORM_JS : ''}${parts.hours ? HOURS_JS : ''}${parts.embed ? EMBED_JS : ''}${parts.motion ? MOTION_JS : ''}</script>${parts.lottie ? `\n<script>${LOTTIE_PLAYER}</script>\n<script>${LOTTIE_JS}</script>` : ''}
 ${doc.site?.bodyCode ?? ''}
 </body>
 </html>`;

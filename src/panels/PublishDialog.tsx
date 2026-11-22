@@ -13,6 +13,9 @@ import { addAnalyticsPolicy, addPolicySections, analyticsMissingInPolicy, EMBED_
 import { useDialog } from './SiteSettings';
 import { slug } from '../model/css';
 import { checkPages, type Finding } from '../model/pageCheck';
+import { langLabel, missingTranslations, secondLang } from '../model/i18n';
+import { hasLangSwitch, insertLangSwitch } from '../model/language';
+import { openTranslate } from './TranslateDialog';
 
 type Level = 'ok' | 'warn' | 'info';
 interface Check { id: string; level: Level; text: ReactNode; action?: { label: string; run: () => void } }
@@ -81,6 +84,12 @@ function useChecks(): Check[] {
     text: <>Die Besucher-Statistik (Plausible) ist eingeschaltet, die Datenschutzerklärung erwähnt sie aber noch nicht.</>,
     action: { label: 'Abschnitt einfügen', run: () => addAnalyticsPolicy() } });
   if (doc.site?.analytics && !doc.site.analytics.domain) out.push({ id: 'analytics-domain', level: 'warn', text: <>Besucher-Statistik: Es fehlt noch die Domain.</>, action: { label: 'Einstellen', run: () => useDialog.getState().show('export', 'site') } });
+  const l2 = secondLang(doc);
+  if (l2) {
+    const miss = missingTranslations(doc, l2);
+    if (miss) out.push({ id: 'lang2', level: 'warn', text: <>{miss} Text{miss === 1 ? '' : 'e'} {miss === 1 ? 'ist' : 'sind'} noch nicht auf {langLabel(l2)} übersetzt – dort steht dann der deutsche Text.</>, action: { label: 'Übersetzen', run: () => openTranslate() } });
+    if (!hasLangSwitch(doc)) out.push({ id: 'lang-switch', level: 'warn', text: <>Es gibt noch keinen Sprachumschalter – Besucher finden die {langLabel(l2)}e Fassung sonst nicht.</>, action: { label: 'Umschalter einsetzen', run: () => { insertLangSwitch(); } } });
+  }
   const empty = doc.pages.filter(p => !siteRoot(p));
   if (empty.length) out.push({ id: 'empty', level: 'warn', text: <>Ohne Inhalt (kein Board): {empty.map(p => p.name).join(', ')}.</>, action: { label: 'Seite öffnen', run: () => openPage(empty[0].id) } });
 

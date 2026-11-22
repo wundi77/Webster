@@ -79,7 +79,7 @@ export function useShortcuts() {
         case 'i': s.setTool('move'); useDialog.getState().show('icons'); break;
         case 'h': s.setTool('hand'); break;
         case 'k': openImagePicker(); break;
-        case 'p': openPreview(s.pageId); break;
+        case 'p': openPreview(s.pageId, s.lang); break;
         case 'escape': if (s.selection.length) s.setSelection([]); s.setTool('move'); break;
         case 'delete': case 'backspace': e.preventDefault(); deleteSelection(); break;
         case 'enter': {

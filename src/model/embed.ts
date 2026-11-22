@@ -68,10 +68,17 @@ export function insertEmbed(kind: EmbedKind, videoRef: string | null = null): st
   return node.id;
 }
 
+/** Routenplaner (Google Maps) mit dieser Adresse als Ziel */
+export const directionsUrl = (address: string) => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address.trim())}`;
+
 export function setEmbed(id: string, patch: Partial<Embed>, key = 'embed') {
   useEditor.getState().mutate(pg => {
     const n = pg.nodes[id];
     if (n?.embed) n.embed = { ...n.embed, ...patch };
+    // Knöpfe „Route planen“ zu dieser Karte führen zur neuen Adresse
+    if (n?.embed && patch.address !== undefined) {
+      for (const k of Object.values(pg.nodes)) if (k.route === id && patch.address.trim()) k.link = { type: 'url', url: directionsUrl(patch.address), newTab: true };
+    }
   }, { key });
 }
 

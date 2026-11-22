@@ -113,3 +113,13 @@ export async function addRecent(entry: RecentProject) {
 export async function removeRecent(id: string) {
   await put(RECENT_KEY, (await loadRecent()).filter(e => e.id !== id));
 }
+
+// ---------- Zwischenstände ohne Projektordner ----------
+
+export interface BrowserSnapshot { id: string; name: string; savedAt: number; doc: WDocument }
+const snapKey = (project: string) => `snapshots:${project}`;
+export async function loadBrowserSnapshots(project: string): Promise<BrowserSnapshot[]> {
+  const r = await get<BrowserSnapshot[]>(snapKey(project));
+  return Array.isArray(r) ? r : [];
+}
+export const saveBrowserSnapshots = (project: string, list: BrowserSnapshot[]) => put(snapKey(project), list);

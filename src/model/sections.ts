@@ -11,12 +11,17 @@ import { spaceOf } from './spacing';
 import { isFooter } from './css';
 import { contrast } from './pageCheck';
 import type { ColorAsset, Fill, Layout, Page, SpaceToken, TextTag, WDocument, WNode } from './types';
+import { DAY_NAMES, dayText, defaultHours } from './hoursCore';
+import { defaultEmbed } from './embedCore';
+import { buildFormBoard } from './form';
+import { findLegalPage, mainFont } from './legal';
+import { directionsUrl } from './embed';
 
 type Role = 'Hauptfarbe' | 'Akzent' | 'Hintergrund' | 'Fläche' | 'Text' | 'Text leise' | 'Auf Hauptfarbe';
 const FALLBACK: Record<Role, string> = { Hauptfarbe: '#6A55F5', Akzent: '#FF7A59', Hintergrund: '#FFFFFF', Fläche: '#F4F2FF', Text: '#1C1B22', 'Text leise': '#5E5C6B', 'Auf Hauptfarbe': '#FFFFFF' };
 
 /** Bau-Umgebung: Seite, Farben, Abstände */
-interface Ctx { pg: Page; colors: ColorAsset[]; space: Record<SpaceToken, number> }
+interface Ctx { pg: Page; colors: ColorAsset[]; space: Record<SpaceToken, number>; doc: WDocument }
 let C: Ctx;
 
 const paint = (role: Role | string, opacity = 1): Fill => {
@@ -308,6 +313,89 @@ const contact = () => {
   return outer;
 };
 
+// ---------- Für Betriebe ----------
+
+const hoursSec = () => {
+  const { outer, inner } = section('Öffnungszeiten', [paint('Hintergrund')]);
+  const row = inner({ dir: 'row', gap: 'xl', align: 'start', stackMobile: true });
+  const t = box(row, 'Text', { gap: 'm', pad: [0, 0, 0, 0] });
+  txt(t, 'Öffnungszeiten', { size: 40, weight: 800, tag: 'h2', name: 'Überschrift' });
+  txt(t, 'Wir freuen uns auf deinen Besuch. An Feiertagen kann es Abweichungen geben.', { size: 18, role: 'Text leise', name: 'Text' });
+  const h = defaultHours();
+  const table = box(row, 'Öffnungszeiten', { gap: 0, pad: [8, 28, 8, 28], fill: [paint('Fläche')], radius: 20, extra: { hours: h } });
+  DAY_NAMES.forEach((d, i) => {
+    const r = box(table, d, { dir: 'row', gap: 'm', pad: [12, 0, 12, 0], align: 'center', justify: 'space-between' });
+    txt(r, d, { size: 17, weight: 600, name: 'Tag' }).sizingH = 'auto';
+    const tt = txt(r, dayText(h.days[i]), { size: 17, role: 'Text leise', name: 'Zeit', align: 'right' });
+    if (h.days[i].closed) tt.opacity = 0.6;
+  });
+  const pill = box(t, 'Geöffnet-Anzeige', { dir: 'row', gap: 0, pad: [8, 16, 8, 16], align: 'center', fill: [paint('Hauptfarbe', 0.12)], radius: 999, sizingH: 'auto' });
+  const b = txt(pill, 'Jetzt geöffnet · bis 18 Uhr', { size: 15, weight: 600, role: 'Hauptfarbe', name: 'Geöffnet jetzt?' });
+  b.sizingH = 'auto';
+  b.openBadge = table.id;
+  return outer;
+};
+
+const directions = () => {
+  const { outer, inner } = section('Anfahrt', [paint('Fläche')]);
+  const row = inner({ dir: 'row', gap: 'xl', align: 'stretch', stackMobile: true });
+  const t = box(row, 'Text', { gap: 'm', pad: [0, 0, 0, 0], maxW: 420 });
+  const address = 'Musterstraße 1, 12345 Musterstadt';
+  txt(t, 'So findest du uns', { size: 40, weight: 800, tag: 'h2', name: 'Überschrift' });
+  txt(t, 'Musterstraße 1\n12345 Musterstadt', { size: 20, weight: 600, name: 'Adresse' });
+  txt(t, 'Mit Bus und Bahn: Haltestelle „Marktplatz“, zwei Minuten zu Fuß. Parkplätze gibt es direkt vor dem Haus.', { size: 17, role: 'Text leise', name: 'Hinweis' });
+  const btn = button(t, 'Route planen');
+  const map = add(createNode('rect', {
+    name: 'Karte', w: 640, h: 420, sizingH: 'fill', sizingV: 'fixed', radius: 20, fills: [makeFill('#E5E3DF')],
+    embed: { ...defaultEmbed('gmaps'), address },
+  }), row);
+  applyEdit(map, 'mobile', e => { e.h = 300; });
+  btn.route = map.id;
+  btn.link = { type: 'url', url: directionsUrl(address), newTab: true };
+  return outer;
+};
+
+const priceList = () => {
+  const { outer, inner } = section('Preisliste', [paint('Hintergrund')]);
+  const c = inner({ gap: 'l', align: 'stretch', maxW: 860 });
+  txt(c, 'Unsere Preise', { size: 40, weight: 800, tag: 'h2', align: 'center', name: 'Überschrift' });
+  const groups: [string, [string, string, string][]][] = [
+    ['Kaffee', [['Espresso', 'Kräftig, aus eigener Röstung', '2,40 €'], ['Cappuccino', 'Mit fein aufgeschäumter Milch', '3,60 €'], ['Filterkaffee', 'Frisch aufgebrüht, Nachfüllen gratis', '3,20 €']]],
+    ['Kuchen', [['Käsekuchen', 'Nach Omas Rezept', '3,90 €'], ['Apfelkuchen', 'Mit Sahne', '3,80 €']]],
+  ];
+  for (const [g, items] of groups) {
+    const grp = box(c, g, { gap: 0, pad: [0, 0, 0, 0] });
+    txt(grp, g, { size: 15, weight: 700, role: 'Hauptfarbe', upper: true, ls: 1.2, tag: 'h3', name: 'Gruppe' });
+    for (const [name, desc, price] of items) {
+      const r = box(grp, name, { dir: 'row', gap: 'm', pad: [16, 0, 16, 0], align: 'start', justify: 'space-between' });
+      const l = box(r, 'Angebot', { gap: 4, pad: [0, 0, 0, 0] });
+      txt(l, name, { size: 19, weight: 600, name: 'Name' });
+      txt(l, desc, { size: 15, role: 'Text leise', name: 'Beschreibung' });
+      txt(r, price, { size: 19, weight: 600, name: 'Preis', align: 'right' }).sizingH = 'auto';
+    }
+  }
+  return outer;
+};
+
+const booking = () => {
+  const { outer, inner } = section('Terminanfrage', [paint('Fläche')]);
+  const row = inner({ dir: 'row', gap: 'xl', align: 'start', stackMobile: true });
+  const t = box(row, 'Text', { gap: 'm', pad: [0, 0, 0, 0], maxW: 420 });
+  txt(t, 'Termin anfragen', { size: 40, weight: 800, tag: 'h2', name: 'Überschrift' });
+  txt(t, 'Wähle einen Wunschtermin. Wir melden uns schnell und bestätigen ihn dir per E-Mail oder Telefon.', { size: 18, role: 'Text leise', name: 'Text' });
+  const ds = findLegalPage(C.doc, 'datenschutz');
+  const form = buildFormBoard(C.pg, mainFont(C.doc), ['name', 'email', 'telefon', 'datum', 'uhrzeit', 'nachricht'], 'Terminanfrage über die Website', ds?.id ?? null, 'Termin anfragen');
+  form.parentId = row.id; row.children.push(form.id);
+  form.sizingH = 'fill';
+  form.fills = [paint('Hintergrund')];
+  form.radius = 20;
+  if (form.layout) { const p = C.space.l; form.layout = { ...form.layout, padding: [p, p, p, p] }; }
+  // Knopf in der Hauptfarbe
+  const btn = form.children.map(k => C.pg.nodes[k]).find(k => k?.formSubmit);
+  if (btn) { btn.fills = [paint('Hauptfarbe')]; btn.radius = 999; const bt = C.pg.nodes[btn.children[0]]; if (bt) bt.fills = [paint('Auf Hauptfarbe')]; }
+  return outer;
+};
+
 // ---------- Aufklappen, Reiter, Pop-up ----------
 
 function accordionBox(parent: WNode | null, items: [string, string][]): WNode {
@@ -366,7 +454,7 @@ function insertBuilt(build: () => WNode, opts: { free?: boolean; section?: strin
   const s = useEditor.getState();
   let made: string | null = null;
   s.mutate((pg, d: WDocument) => {
-    C = { pg, colors: d.library.colors, space: spaceOf(d) };
+    C = { pg, colors: d.library.colors, space: spaceOf(d), doc: d };
     const sel = s.selection.length === 1 ? pg.nodes[s.selection[0]] : undefined;
     const intoBoard = sel?.type === 'board' && !sel.embed && !sel.nav;
     let n = build();
@@ -449,6 +537,10 @@ export const SECTIONS: SectionDef[] = [
   { id: 'faq', group: 'Abschluss', label: 'Fragen', tip: 'Häufige Fragen zum Aufklappen (Akkordeon)', build: faq },
   { id: 'cta', group: 'Abschluss', label: 'Aufruf', tip: 'Farbiges Band mit Satz und Knopf', build: cta },
   { id: 'contact', group: 'Abschluss', label: 'Kontakt', tip: 'Text und Kontaktangaben', build: contact },
+  { id: 'hours', group: 'Für Betriebe', label: 'Öffnungszeiten', tip: 'Öffnungszeiten je Wochentag – auf der Website steht dazu „Jetzt geöffnet“ oder „Gerade geschlossen“', build: hoursSec },
+  { id: 'directions', group: 'Für Betriebe', label: 'Anfahrt', tip: 'Adresse, Karte und ein Knopf „Route planen“', build: directions },
+  { id: 'prices', group: 'Für Betriebe', label: 'Preisliste', tip: 'Speisekarte oder Preisliste: Name, kurze Beschreibung, Preis', build: priceList },
+  { id: 'booking', group: 'Für Betriebe', label: 'Termin', tip: 'Terminanfrage mit Wunschdatum und Uhrzeit – kommt bei dir als E-Mail an', build: booking },
 ];
 
 /** Abschnitt auf der Seite einsetzen: leere Seite → „Untereinander“, sonst nach der Auswahl bzw. am Ende (vor der Fußzeile) */
@@ -501,7 +593,7 @@ export function insertSection(id: string): string | null {
   s.mutate((pg, d: WDocument) => {
     const root = siteRoot(pg);
     if (!root) return;
-    C = { pg, colors: d.library.colors, space: spaceOf(d) };
+    C = { pg, colors: d.library.colors, space: spaceOf(d), doc: d };
     const sec = def.build();
     placeSection(pg, root, sec, s.selection);
     made = sec.id;

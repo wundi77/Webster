@@ -8,6 +8,9 @@ import { NavSection } from './NavSection';
 import { RegionSection } from './RegionSection';
 import { ArrangeSection } from './ArrangeSection';
 import { FormSection } from './FormSection';
+import { HoursSection } from './HoursSection';
+import { openImageEditor } from './ImageEditor';
+import { setAltTranslation } from '../model/language';
 import { EmbedSection, VideoFileButton } from './EmbedSection';
 import { CodeBlockSection, CustomCssField, SiteCodeSection } from './CodeSection';
 import { VectorSection } from './VectorSection';
@@ -127,6 +130,7 @@ function DesignTab() {
     <>
       <StateSwitch nodes={nodes} />
       <BreakpointNotice nodes={nodes} />
+      {nodes.length === 1 && <HoursSection node={nodes[0]} />}
       {nodes.length === 1 && <ComponentSection node={nodes[0]} />}
       {nodes.length === 1 && <RegionSection node={nodes[0]} />}
       {nodes.length === 1 && <NavSection node={nodes[0]} />}
@@ -877,6 +881,7 @@ function GridSection({ nodes }: { nodes: WNode[] }) {
 }
 
 function ImageSection({ node, upd }: { node: WNode; upd: Upd }) {
+  const lang = useEditor(s => s.lang);
   return (
     <Section title="Bild">
       <div className="row">
@@ -891,6 +896,7 @@ function ImageSection({ node, upd }: { node: WNode; upd: Upd }) {
         <button className="btn grow" onClick={async () => { const [f] = await pickFiles('image/*', false); if (f) replaceImage(node.id, f); }}>Bild ersetzen …</button>
         <button className="btn grow" onClick={() => originalImageSize(node.id)}>Originalgröße</button>
       </div>
+      <EditImageButton node={node} />
       {(node.objectFit ?? 'cover') === 'cover' && <FocusPicker node={node} upd={upd} />}
       <div className="row">
         <label className="check grow" title="Beim Klick öffnet sich das Bild groß über der Seite. Liegen mehrere solche Bilder zusammen, kann man durchblättern (Pfeile, Wischen).">
@@ -899,16 +905,29 @@ function ImageSection({ node, upd }: { node: WNode; upd: Upd }) {
         </label>
       </div>
       {node.link && <p className="proto-hint keep">Das Bild hat einen Link – deshalb kann es nicht groß gezeigt werden.</p>}
-      <div className="lbl-top" title="Kurze Beschreibung, was auf dem Bild zu sehen ist. Hilft blinden Menschen (Vorlesen) und Suchmaschinen.">Bildbeschreibung</div>
-      <textarea className="input alt-input" rows={2} aria-label="Bildbeschreibung" disabled={node.alt === ''}
-        placeholder={`Was ist zu sehen? (sonst: „${node.name}“)`} value={node.alt ?? ''}
-        onChange={e => upd(n => { n.alt = e.target.value || undefined; }, 'alt')} />
+      <div className="lbl-top" title="Kurze Beschreibung, was auf dem Bild zu sehen ist. Hilft blinden Menschen (Vorlesen) und Suchmaschinen.">Bildbeschreibung{lang ? ` (${lang.toUpperCase()})` : ''}</div>
+      {lang ? (
+        <textarea className="input alt-input" rows={2} aria-label={`Bildbeschreibung ${lang.toUpperCase()}`} disabled={node.alt === ''}
+          placeholder="Übersetzung der Bildbeschreibung" value={node.altTr?.[lang] ?? ''}
+          onChange={e => setAltTranslation(node.id, lang, e.target.value)} />
+      ) : (
+        <textarea className="input alt-input" rows={2} aria-label="Bildbeschreibung" disabled={node.alt === ''}
+          placeholder={`Was ist zu sehen? (sonst: „${node.name}“)`} value={node.alt ?? ''}
+          onChange={e => upd(n => { n.alt = e.target.value || undefined; }, 'alt')} />
+      )}
       <label className="check" title="Für Bilder, die nur schmücken (Muster, Formen). Vorleseprogramme überspringen sie dann.">
         <input type="checkbox" checked={node.alt === ''} onChange={e => upd(n => { n.alt = e.target.checked ? '' : undefined; }, 'alt')} />
         Nur Schmuck – nichts vorlesen
       </label>
     </Section>
   );
+}
+
+/** Zuschneiden, drehen, aufhellen – nicht bei Vektorgrafiken und animierten GIFs */
+function EditImageButton({ node }: { node: WNode }) {
+  const mime = useEditor(s => { const a = node.imageRef ? s.doc.library.images.find(i => i.id === node.imageRef) : undefined; return a?.src.startsWith('data:image/') ? a.src.slice(5, a.src.search(/[;,]/)) : ''; });
+  if (!node.imageRef || !mime || mime === 'image/gif' || mime === 'image/svg+xml') return null;
+  return <div className="row"><button type="button" className="btn grow" onClick={() => openImageEditor(node.imageRef!)}>Bild bearbeiten …</button></div>;
 }
 
 /** Fokuspunkt: welcher Teil des Bildes beim Zuschneiden sichtbar bleibt */

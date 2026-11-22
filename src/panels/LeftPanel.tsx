@@ -18,19 +18,21 @@ import {
 import { isAncestor } from '../model/geometry';
 import { AssetsPanel } from './AssetsPanel';
 import { HistoryPanel } from './HistoryPanel';
+import { CommentsPanel } from './CommentsPanel';
 import { isInstanceRoot } from '../model/components';
 import { askConfirm } from '../ui/ConfirmDialog';
 import type { Page } from '../model/types';
 import { withScrolled } from '../model/hover';
 const NO_PAGES: Page[] = [];
 
-export type LeftArea = 'layers' | 'insert' | 'library' | 'history';
+export type LeftArea = 'layers' | 'insert' | 'library' | 'history' | 'comments';
 const AREA_KEY = 'webster.leftArea';
 const AREAS: { id: LeftArea; label: string; sub: string; icon: ReactNode }[] = [
   { id: 'layers', label: 'Seiten & Ebenen', sub: 'Seiten deiner Website und was darauf liegt', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden="true"><path d="M8 2l6 3-6 3-6-3 6-3z" /><path d="M2 8l6 3 6-3" /><path d="M2 11l6 3 6-3" /></svg> },
   { id: 'insert', label: 'Einfügen', sub: 'Fertige Abschnitte und Bausteine – Klick fügt ein', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="3" /><path d="M8 5v6M5 8h6" /></svg> },
   { id: 'library', label: 'Bibliothek', sub: 'Komponenten, Farben, Schriften und Bilder dieses Projekts', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6" /><circle cx="6" cy="6.5" r="1" /><circle cx="10" cy="6.5" r="1" /><circle cx="6.5" cy="10.5" r="1" /></svg> },
   { id: 'history', label: 'Verlauf', sub: 'Klick auf einen Schritt springt dorthin zurück', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 5v3l2 2" /></svg> },
+  { id: 'comments', label: 'Kommentare', sub: 'Website zum Ansehen weitergeben und Rückmeldungen abhaken', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden="true"><path d="M3 3h10a1 1 0 011 1v6a1 1 0 01-1 1H7l-3 2.5V11H3a1 1 0 01-1-1V4a1 1 0 011-1z" /></svg> },
 ];
 const loadArea = (): LeftArea => { try { const v = localStorage.getItem(AREA_KEY); if (AREAS.some(a => a.id === v)) return v as LeftArea; } catch { /* kein Speicher */ } return 'layers'; };
 /** Welcher Bereich links offen ist */
@@ -42,12 +44,14 @@ export const useLeftArea = create<{ area: LeftArea; setArea: (a: LeftArea) => vo
 /** Schmale Symbolleiste ganz links: ein Bereich zur Zeit */
 export function LeftRail() {
   const { area, setArea } = useLeftArea();
+  const openComments = useEditor(s => (s.doc.comments ?? []).filter(c => !c.done).length);
   return (
     <nav className="rail" aria-label="Bereiche" role="tablist" aria-orientation="vertical">
       {AREAS.map(a => (
         <button key={a.id} type="button" role="tab" aria-selected={area === a.id} aria-label={a.label} title={a.label}
           className={`rail-btn${area === a.id ? ' on' : ''}`} onClick={() => setArea(a.id)}>
           {a.icon}<span className="rail-label">{a.id === 'layers' ? 'Seiten' : a.label}</span>
+          {a.id === 'comments' && openComments > 0 && <span className="rail-badge" aria-label={`${openComments} offen`}>{openComments}</span>}
         </button>
       ))}
     </nav>
@@ -67,6 +71,7 @@ export function LeftPanel() {
         {area === 'layers' ? <><PagesSection /><TemplatesSection /><LayersSection /></>
           : area === 'insert' ? <InsertPanel />
           : area === 'library' ? <AssetsPanel />
+          : area === 'comments' ? <CommentsPanel />
           : <HistoryPanel />}
       </div>
     </>

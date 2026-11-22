@@ -110,15 +110,15 @@ const blobToDataUrl = (b: Blob) => new Promise<string>((res, rej) => {
 async function exists(dir: FileSystemDirectoryHandle, name: string) {
   try { await dir.getFileHandle(name); return true; } catch { return false; }
 }
-async function writeFile(dir: FileSystemDirectoryHandle, name: string, data: Blob | string) {
+export async function writeFile(dir: FileSystemDirectoryHandle, name: string, data: Blob | string) {
   const fh = await dir.getFileHandle(name, { create: true });
   const w = await fh.createWritable();
   await w.write(data);
   await w.close();
 }
 
-/** Projekt in einen Ordner schreiben: erst Bilder/Videos, zuletzt die Projektdatei */
-export async function writeProject(dir: FileSystemDirectoryHandle, doc: WDocument, id: string): Promise<void> {
+/** Bilder/Videos als Dateien in den Ordner schreiben; liefert eine Kopie des Dokuments mit Dateipfaden statt eingebetteter Daten */
+export async function writeMedia(dir: FileSystemDirectoryHandle, doc: WDocument): Promise<{ out: WDocument; files: string[] }> {
   const out = structuredClone(doc) as WDocument;
   const media = [['bilder', out.library.images], ['videos', out.library.videos]] as const;
   const files: string[] = [];
@@ -128,23 +128,25 @@ export async function writeProject(dir: FileSystemDirectoryHandle, doc: WDocumen
     for (const a of list) {
       if (!a.src.startsWith('data:')) continue;
       const mime = a.src.slice(5, a.src.search(/[;,]/));
-      const name = `${a.id}.${EXT[mime] ?? 'bin'}`;
+      const rev = (a as { rev?: number }).rev;
+      const name = `${a.id}${rev ? `-${rev}` : ''}.${EXT[mime] ?? 'bin'}`;
       if (!(await exists(sub, name))) await writeFile(sub, name, dataUrlToBlob(a.src));
       a.src = `${folder}/${name}`;
       files.push(a.src);
     }
   }
+  return { out, files };
+}
+
+/** Projekt in einen Ordner schreiben: erst Bilder/Videos, zuletzt die Projektdatei */
+export async function writeProject(dir: FileSystemDirectoryHandle, doc: WDocument, id: string): Promise<void> {
+  const { out, files } = await writeMedia(dir, doc);
   const file = { webster: 1, id, savedAt: new Date().toISOString(), files, doc: out };
   await writeFile(dir, PROJECT_FILE, JSON.stringify(file));
 }
 
-/** Projekt aus einem Ordner lesen; fehlende Bilder werden gemeldet */
-export async function readProject(dir: FileSystemDirectoryHandle): Promise<{ doc: WDocument; id: string; missing: string[] }> {
-  let fh: FileSystemFileHandle;
-  try { fh = await dir.getFileHandle(PROJECT_FILE); } catch { throw new Error(`In diesem Ordner liegt kein Webster-Projekt (es fehlt die Datei „${PROJECT_FILE}“).`); }
-  const raw = JSON.parse(await (await fh.getFile()).text());
-  const doc = raw?.doc as WDocument;
-  if (!doc || doc.version !== 1 || !Array.isArray(doc.pages) || !doc.pages.length) throw new Error('Die Projektdatei ist beschädigt oder stammt aus einer neueren Webster-Version.');
+/** Dateipfade (bilder/…, videos/…) im Dokument wieder durch die Daten ersetzen; liefert fehlende Dateien */
+export async function readMedia(dir: FileSystemDirectoryHandle, doc: WDocument): Promise<string[]> {
   const missing: string[] = [];
   for (const list of [doc.library?.images ?? [], doc.library?.videos ?? []]) {
     for (const a of list) {
@@ -157,6 +159,17 @@ export async function readProject(dir: FileSystemDirectoryHandle): Promise<{ doc
       } catch { missing.push(a.src); a.src = ''; }
     }
   }
+  return missing;
+}
+
+/** Projekt aus einem Ordner lesen; fehlende Bilder werden gemeldet */
+export async function readProject(dir: FileSystemDirectoryHandle): Promise<{ doc: WDocument; id: string; missing: string[] }> {
+  let fh: FileSystemFileHandle;
+  try { fh = await dir.getFileHandle(PROJECT_FILE); } catch { throw new Error(`In diesem Ordner liegt kein Webster-Projekt (es fehlt die Datei „${PROJECT_FILE}“).`); }
+  const raw = JSON.parse(await (await fh.getFile()).text());
+  const doc = raw?.doc as WDocument;
+  if (!doc || doc.version !== 1 || !Array.isArray(doc.pages) || !doc.pages.length) throw new Error('Die Projektdatei ist beschädigt oder stammt aus einer neueren Webster-Version.');
+  const missing = await readMedia(dir, doc);
   return { doc, id: typeof raw.id === 'string' ? raw.id : uid(), missing };
 }
 

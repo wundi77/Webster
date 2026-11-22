@@ -6,11 +6,13 @@ import { renderPreviewPage } from '../export/html';
 import { listenForDocs } from './bridge';
 
 const prepare = (d: WDocument): WDocument => migrateDocument(structuredClone(d));
-const hashPage = () => decodeURIComponent(location.hash.replace(/^#preview=?/, ''));
+const hashPage = () => decodeURIComponent(location.hash.replace(/^#preview=?/, '').replace(/&lang=.*$/, ''));
+const hashLang = () => location.hash.match(/&lang=([a-z]+)/)?.[1] ?? null;
 
 export function PreviewApp() {
   const [doc, setDoc] = useState<WDocument | null>(null);
   const [pageId, setPageId] = useState(hashPage);
+  const [lang, setLang] = useState<string | null>(hashLang);
   const frame = useRef<HTMLIFrameElement>(null);
   const scroll = useRef(0);
 
@@ -18,7 +20,7 @@ export function PreviewApp() {
     let live = false;
     loadSavedDocument().then(d => { if (d && !live) setDoc(prepare(d)); });
     const stop = listenForDocs(d => { live = true; setDoc(prepare(d)); });
-    const onHash = () => setPageId(hashPage());
+    const onHash = () => { setPageId(hashPage()); setLang(hashLang()); };
     window.addEventListener('hashchange', onHash);
     return () => { stop(); window.removeEventListener('hashchange', onHash); };
   }, []);
@@ -26,9 +28,9 @@ export function PreviewApp() {
   const page = doc ? doc.pages.find(p => p.id === pageId) ?? doc.pages[0] : null;
   useEffect(() => { if (doc && page) document.title = page.seo?.title || page.name; }, [doc, page]);
 
-  const html = useMemo(() => (doc && page ? renderPreviewPage(doc, page.id, id => ({ href: '#', attrs: `data-page="${id}"` })) : ''), [doc, page]);
+  const html = useMemo(() => (doc && page ? renderPreviewPage(doc, page.id, id => ({ href: '#', attrs: `data-page="${id}"` }), lang) : ''), [doc, page, lang]);
 
-  const go = (id: string) => { location.hash = `preview=${id}`; scroll.current = 0; };
+  const go = (id: string, l = lang) => { location.hash = `preview=${id}${l && doc?.site?.lang2 === l ? `&lang=${l}` : ''}`; scroll.current = 0; };
 
   // Scroll-Position bei Live-Updates behalten, Links zwischen Seiten abfangen
   const onLoad = () => {
@@ -39,7 +41,9 @@ export function PreviewApp() {
     w.addEventListener('scroll', () => { scroll.current = w.scrollY; });
     d.addEventListener('click', e => {
       const a = (e.target as Element).closest?.('a[data-page]');
-      if (a) { e.preventDefault(); go(a.getAttribute('data-page')!); }
+      if (a) { e.preventDefault(); go(a.getAttribute('data-page')!); return; }
+      const sw = (e.target as Element).closest?.('a[data-lang]');
+      if (sw && page) { e.preventDefault(); go(page.id, sw.getAttribute('data-lang')); }
     });
   };
 
